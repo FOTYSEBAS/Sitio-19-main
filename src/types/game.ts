@@ -465,6 +465,7 @@ export interface TowerDefinition {
   soundOnAttack?: string;
   soundOnDeath?: EffectSoundKey | (string & {});
   inlineDesign?: Partial<TowerDesignConfig>;
+  almanac?: AlmanacEntryConfig;
 }
 
 export interface EnemyRangedAttackConfig {
@@ -640,6 +641,7 @@ export interface EnemyDefinition {
   soundOnSpawn?: EffectSoundKey | (string & {});
   soundOnDeath?: EffectSoundKey | (string & {});
   inlineDesign?: Partial<EnemyDesignConfig>;
+  almanac?: AlmanacEntryConfig;
 }
 
 export interface LevelSkyEnergyConfig {
@@ -1250,23 +1252,15 @@ export interface LevelEventDefinition {
   visual?: LevelEventVisualConfig;
 }
 
-// Raw customizable level schema stored in levels.json
-// `time` = relative delay in seconds since the previous wave (or `absoluteTime` for exact timestamp)!
-// `row` / `rows` are optional (omitted = random row(s)); `[x1, x2]` spans 2 rows (e.g. SCP-682).
-// `flagMarkers` is optional (auto-computed from `isFlagHorde` events).
 export interface RawLevelEvent {
-  time: number;
+  time: number; // Delay in seconds after previous event (unless `absoluteTime` is provided)
   absoluteTime?: number;
   type?: EnemyType;
+  count?: number;
   row?: number | [number, number];
   rows?: Array<number | [number, number]>;
   col?: number;
-  count?: number;
   staggerSec?: number;
-  repeat?: {
-    times: number;
-    intervalSec: number;
-  };
   isFlagHorde?: boolean;
   hordeLabel?: string;
   hpMultiplier?: number;
@@ -1282,12 +1276,58 @@ export interface RawLevelEvent {
   eventId?: string;
   eventOverrides?: Partial<LevelEventDefinition>;
   event?: Partial<LevelEventDefinition>;
+  repeat?: {
+    times: number;
+    intervalSec: number;
+  };
 }
 
+export interface RawLevelWave {
+  id?: string;
+  title?: string;
+  time?: number;
+  delaySec?: number;
+  absoluteTime?: number;
+  isFlagHorde?: boolean;
+  hordeLabel?: string;
+  announcement?: string;
+  dialogueId?: string;
+  inlineDialogue?: DialogueDefinition;
+  eventId?: string;
+  eventOverrides?: Partial<LevelEventDefinition>;
+  event?: Partial<LevelEventDefinition>;
+  repeat?: {
+    times: number;
+    intervalSec: number;
+  };
+  spawns: LevelEventSpawnEntry[];
+}
+
+export type LevelTowerOverride = Partial<TowerDefinition> & {
+  design?: Partial<TowerDesignConfig> | string;
+};
+
+export type LevelEnemyOverride = Partial<EnemyDefinition> & {
+  design?: Partial<EnemyDesignConfig> | string;
+};
+
+// Raw customizable level schema stored in levels/*.json or levels/*.toml
+// `time` = relative delay in seconds since the previous wave (or `absoluteTime` for exact timestamp)!
+// `row` / `rows` are optional (omitted = random row(s)); `[x1, x2]` spans 2 rows (e.g. SCP-682).
+// `flagMarkers` is optional (auto-computed from `isFlagHorde` events).
 export interface RawLevelConfig {
   level?: number;
   title: string;
   description: string;
+  subtitle?: string;
+  difficulty?: string;
+  themeColor?: string;
+  accentColor?: string;
+  badgeText?: string;
+  recommendedTowers?: Array<TowerType | (string & {})>;
+  laneLabels?: string[];
+  prepTimeSec?: number;
+  hudOverride?: HudThemeDesignConfig;
   coverImage?: string;
   portrait?: string;
   bannerImage?: string;
@@ -1299,6 +1339,8 @@ export interface RawLevelConfig {
   boardOverride?: Partial<BoardDesignConfig>;
   environment?: LevelEnvironmentConfig;
   rules?: LevelRulesConfig;
+  towerOverrides?: Record<string, LevelTowerOverride>;
+  enemyOverrides?: Record<string, LevelEnemyOverride>;
   disableTeslaGates?: boolean;
   autoCollectEnergy?: boolean;
   skyEnergy?: LevelSkyEnergyConfig;
@@ -1318,12 +1360,16 @@ export interface RawLevelConfig {
   defeatDialogueId?: string;
   inlineDialogues?: Record<string, DialogueDefinition>;
   victoryCondition?: LevelVictoryCondition;
+  customDefeatTitle?: string;
+  customDefeatSubtitle?: string;
+  gameplayOverride?: Partial<GameConfig['gameplay']>;
   enemiesPresent?: EnemyType[];
   durationSeconds?: number;
   flagMarkers?: number[];
   rewardLabel?: string | null;
   unlockTower?: TowerType;
-  events: RawLevelEvent[];
+  events?: RawLevelEvent[];
+  waves?: RawLevelWave[];
 }
 
 export interface ResolvedSpawnTarget {
@@ -1358,6 +1404,14 @@ export interface LevelConfig {
   level: number;
   title: string;
   description: string;
+  subtitle?: string;
+  difficulty?: string;
+  themeColor?: string;
+  badgeText?: string;
+  recommendedTowers?: TowerType[];
+  laneLabels?: string[];
+  prepTimeSec?: number;
+  hudOverride?: HudThemeDesignConfig;
   coverImage?: string;
   startingEnergy: number;
   maxDeckSlots: number;
@@ -1366,6 +1420,8 @@ export interface LevelConfig {
   boardOverride?: Partial<BoardDesignConfig>;
   environment?: LevelEnvironmentConfig;
   rules?: LevelRulesConfig;
+  towerOverrides?: Record<string, LevelTowerOverride>;
+  enemyOverrides?: Record<string, LevelEnemyOverride>;
   disableTeslaGates?: boolean;
   autoCollectEnergy?: boolean;
   skyEnergy?: LevelSkyEnergyConfig;
@@ -1384,6 +1440,9 @@ export interface LevelConfig {
   defeatDialogueId?: string;
   inlineDialogues?: Record<string, DialogueDefinition>;
   victoryCondition?: LevelVictoryCondition;
+  customDefeatTitle?: string;
+  customDefeatSubtitle?: string;
+  gameplayOverride?: Partial<GameConfig['gameplay']>;
   enemiesPresent: EnemyType[];
   durationSeconds: number;
   flagMarkers: number[];
@@ -1558,6 +1617,15 @@ export interface TowerDesignConfig {
   outlineGlowBlur?: number;
   breatheAmp?: number;
   breatheSpeed?: number;
+  swayAmp?: number;
+  swaySpeed?: number;
+  tiltAmpDeg?: number;
+  tiltSpeed?: number;
+  squashAmp?: number;
+  squashSpeed?: number;
+  spinDegPerSec?: number;
+  scaleX?: number;
+  scaleY?: number;
   recoilScale?: number;
   opacity?: number;
 }
@@ -1627,6 +1695,17 @@ export interface EnemyDesignConfig {
   stealthAlpha?: number;
   burnTint?: string;
   stunRingColor?: string;
+  breatheAmp?: number;
+  breatheSpeed?: number;
+  swayAmp?: number;
+  swaySpeed?: number;
+  tiltAmpDeg?: number;
+  tiltSpeed?: number;
+  squashAmp?: number;
+  squashSpeed?: number;
+  spinDegPerSec?: number;
+  scaleX?: number;
+  scaleY?: number;
   opacity?: number;
 }
 
@@ -1923,6 +2002,186 @@ export interface UiDesignConfig {
   floatingTextScale?: number;
 }
 
+export type AlmanacAnimationState =
+  | 'idle'
+  | 'walk'
+  | 'attack'
+  | 'ability'
+  | 'enraged'
+  | 'damaged'
+  | 'slowed'
+  | 'burning'
+  | 'stunned'
+  | 'disabled';
+
+export type AlmanacCardTransition = 'none' | 'fade' | 'slide' | 'scan' | 'pulse';
+
+export interface AlmanacStatItem {
+  id?: string;
+  label: string;
+  value: string | number;
+  numericValue?: number;
+  maxValue?: number;
+  unit?: string;
+  color?: string;
+  bar?: boolean;
+  icon?: string;
+  order?: number;
+}
+
+export interface AlmanacStatOverride {
+  label?: string;
+  value?: string | number;
+  numericValue?: number;
+  maxValue?: number;
+  unit?: string;
+  color?: string;
+  hidden?: boolean;
+  bar?: boolean;
+  icon?: string;
+  order?: number;
+}
+
+export interface AlmanacCustomField {
+  label: string;
+  value: string;
+  color?: string;
+  badge?: string;
+}
+
+export interface AlmanacAnimationPreset {
+  id?: string;
+  preset?: string;
+  animationPreset?: string;
+  state?: AlmanacAnimationState;
+  defaultState?: AlmanacAnimationState;
+  label?: string;
+  speed?: number;
+  bobSpeed?: number;
+  bobAmount?: number;
+  breatheAmp?: number;
+  breatheSpeed?: number;
+  swayAmp?: number;
+  swaySpeed?: number;
+  tiltAmpDeg?: number;
+  tiltSpeed?: number;
+  squashAmp?: number;
+  squashSpeed?: number;
+  spinDegPerSec?: number;
+  scaleX?: number;
+  scaleY?: number;
+  pulseSpeed?: number;
+  recoilIntervalSec?: number;
+  recoilStrength?: number;
+  floatAmp?: number;
+  scale?: number;
+  rotationDeg?: number;
+  orbitCount?: number;
+  orbitRadius?: number;
+  orbitSpeed?: number;
+  orbitColor?: string;
+  pedestalColor?: string;
+  pedestalStrokeColor?: string;
+  pedestalRadiusX?: number;
+  pedestalRadiusY?: number;
+  showPedestal?: boolean;
+  backdropColor?: string;
+  showGrid?: boolean;
+  gridColor?: string;
+  gridStep?: number;
+  glowColor?: string;
+  particlePresetId?: string;
+  cardTransition?: AlmanacCardTransition;
+}
+
+export interface AlmanacAnimationConfig {
+  preset?: string;
+  animationPreset?: string;
+  defaultState?: AlmanacAnimationState;
+  availableStates?: AlmanacAnimationState[];
+  autoPlay?: boolean;
+  speed?: number;
+  bobSpeed?: number;
+  bobAmount?: number;
+  breatheAmp?: number;
+  breatheSpeed?: number;
+  swayAmp?: number;
+  swaySpeed?: number;
+  tiltAmpDeg?: number;
+  tiltSpeed?: number;
+  squashAmp?: number;
+  squashSpeed?: number;
+  spinDegPerSec?: number;
+  scaleX?: number;
+  scaleY?: number;
+  pulseSpeed?: number;
+  recoilIntervalSec?: number;
+  recoilStrength?: number;
+  floatAmp?: number;
+  scale?: number;
+  rotationDeg?: number;
+  orbitCount?: number;
+  orbitRadius?: number;
+  orbitSpeed?: number;
+  orbitColor?: string;
+  pedestalColor?: string;
+  pedestalStrokeColor?: string;
+  pedestalRadiusX?: number;
+  pedestalRadiusY?: number;
+  showPedestal?: boolean;
+  backdropColor?: string;
+  showGrid?: boolean;
+  gridColor?: string;
+  gridStep?: number;
+  glowColor?: string;
+  particlePresetId?: string;
+  cardTransition?: AlmanacCardTransition;
+  states?: Partial<
+    Record<AlmanacAnimationState, AlmanacAnimationPreset & { preset?: string; animationPreset?: string }>
+  >;
+}
+
+export interface AlmanacEntryConfig {
+  id?: string;
+  targetKind?: 'tower' | 'enemy';
+  targetType?: string;
+  title?: string;
+  subtitle?: string;
+  code?: string;
+  classification?: string;
+  description?: string;
+  lore?: string;
+  containmentProcedures?: string;
+  tacticalNote?: string;
+  quote?: string;
+  author?: string;
+  clearanceLevel?: string;
+  threatRating?: string;
+  badgeText?: string;
+  accentColor?: string;
+  cardBg?: string;
+  cardBorderColor?: string;
+  tags?: string[];
+  visualMode?: 'design' | 'portrait' | 'both';
+  designId?: string;
+  designKind?: 'auto' | 'enemy' | 'tower' | 'customShape';
+  designOverride?: Partial<EnemyDesignConfig> | Partial<TowerDesignConfig>;
+  portrait?: string;
+  portraitFit?: 'contain' | 'cover';
+  portraitBg?: string;
+  customFields?: AlmanacCustomField[];
+  stats?: AlmanacStatItem[];
+  statOverrides?: Record<string, AlmanacStatOverride>;
+  hideDefaultStats?: boolean;
+  animation?: AlmanacAnimationConfig;
+}
+
+export interface AlmanacCatalog {
+  animations?: Record<string, AlmanacAnimationPreset>;
+  towers?: Record<string, AlmanacEntryConfig>;
+  enemies?: Record<string, AlmanacEntryConfig>;
+}
+
 export interface DesignCatalog {
   board: BoardDesignConfig;
   zones: ZonesDesignConfig;
@@ -1936,6 +2195,7 @@ export interface DesignCatalog {
     deafened: { border: string; text: string; label: string };
     immune: { border: string; text: string; label: string };
   };
+  animations?: Record<string, AlmanacAnimationPreset>;
   customShapes?: Record<string, CustomShapeDefinition | CustomShapeLayer[]>;
   defaultTower?: TowerDesignConfig;
   defaultEnemy?: EnemyDesignConfig;
@@ -1949,6 +2209,114 @@ export interface DesignCatalog {
   fonts?: FontsDesignConfig;
   ui: UiDesignConfig;
   hudTheme?: HudThemeDesignConfig;
+  almanac?: AlmanacCatalog;
+}
+
+export interface UiThemeCustomization {
+  bgPrimary?: string;
+  bgHeader?: string;
+  bgCard?: string;
+  bgElevated?: string;
+  surfaceBg?: string;
+  panelBg?: string;
+  panelBorder?: string;
+  borderColor?: string;
+  accentColor?: string;
+  secondaryAccent?: string;
+  dangerColor?: string;
+  successColor?: string;
+  accentTextColor?: string;
+}
+
+export interface UiTitleScreenCustomization {
+  eyebrow?: string;
+  title?: string;
+  subtitle?: string;
+  playButtonLabel?: string;
+  playButtonText?: string;
+  lockedButtonText?: string;
+  almanacButtonLabel?: string;
+  dossierButtonText?: string;
+  adminButtonText?: string;
+  sectorsSectionLabel?: string;
+  routeTitle?: string;
+  routeSubtitle?: string;
+  enemySectionTitle?: string;
+  objectivesTitle?: string;
+  recommendedLabel?: string;
+  milestoneLabel?: string;
+}
+
+export interface UiLoadoutCustomization {
+  title?: string;
+  subtitlePrefix?: string;
+  incomingTitle?: string;
+  towersTitle?: string;
+  confirmButtonLabel?: string;
+  startButtonText?: string;
+  backButtonLabel?: string;
+  personalLabel?: string;
+  structuresLabel?: string;
+  recommendedSuffix?: string;
+  bannedLabel?: string;
+}
+
+export interface UiHudCustomization {
+  siteLabel?: string;
+  energyLabel?: string;
+  levelLabel?: string;
+  killsLabel?: string;
+  removeLabel?: string;
+  retreatButtonLabel?: string;
+  pauseButtonLabel?: string;
+  pauseLabel?: string;
+  resumeButtonLabel?: string;
+  resumeLabel?: string;
+  restartLabel?: string;
+  almanacButtonLabel?: string;
+  archiveLabel?: string;
+  prepLabel?: string;
+  victoryBadge?: string;
+  victoryTitle?: string;
+  victoryTitleTemplate?: string;
+  victorySubtitleFallback?: string;
+  defeatBadge?: string;
+  defeatTitle?: string;
+  defeatTitleDefault?: string;
+  defeatSubtitleDefault?: string;
+}
+
+export interface UiAlmanacCustomization {
+  modalTitle?: string;
+  modalSubtitle?: string;
+  searchPlaceholder?: string;
+  scpsTabLabel?: string;
+  towersTabLabel?: string;
+  filterAllLabel?: string;
+  filterScpLabel?: string;
+  filterTowerLabel?: string;
+  statsSectionTitle?: string;
+  statsHeading?: string;
+  descriptionHeading?: string;
+  loreSectionTitle?: string;
+  loreHeading?: string;
+  containmentSectionTitle?: string;
+  containmentHeading?: string;
+  tacticalNoteTitle?: string;
+  tacticalHeading?: string;
+  customFieldsSectionTitle?: string;
+  animationHeading?: string;
+  designPickerLabel?: string;
+  showSnippetInspector?: boolean;
+  showStatsBars?: boolean;
+}
+
+export interface UiCustomizationConfig {
+  theme?: UiThemeCustomization;
+  titleScreen?: UiTitleScreenCustomization;
+  loadout?: UiLoadoutCustomization;
+  hud?: UiHudCustomization;
+  almanac?: UiAlmanacCustomization;
 }
 
 
@@ -2018,6 +2386,7 @@ export interface GameConfig {
     secret: string;
     quickJumpLevels: number[];
   };
+  ui?: UiCustomizationConfig;
 }
 
 export interface ActiveEffectState {

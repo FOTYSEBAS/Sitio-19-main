@@ -7,9 +7,12 @@ import {
   GRID_ROWS,
   TOWER_CATALOG,
 } from '../data/scpCatalog';
+import { resolveSelectedDesignConfig } from './almanacHelper';
 import { getDeclarativeEffects } from './effectRunner';
 import { ParticleSystem, renderParticleSystem } from './particleSystem';
 import {
+  AlmanacAnimationConfig,
+  AlmanacAnimationState,
   BlockedCellConfig,
   BoardDesignConfig,
   BoardObstacle,
@@ -67,6 +70,13 @@ const FALLBACK_PROJECTILE_DESIGN: ProjectileDesignConfig = {
   radius: 4.5,
 };
 
+let activeTowerDesignOverrides:
+  | Record<string, Partial<TowerDesignConfig> | string>
+  | undefined;
+let activeEnemyDesignOverrides:
+  | Record<string, Partial<EnemyDesignConfig> | string>
+  | undefined;
+
 function getTowerDesign(type: string): TowerDesignConfig {
   const catalogBase =
     DESIGN_CATALOG.towers[type] ?? {
@@ -74,10 +84,16 @@ function getTowerDesign(type: string): TowerDesignConfig {
       ...(DESIGN_CATALOG.defaultTower ?? {}),
     };
   const towerInline = TOWER_CATALOG.find((t) => t.type === type)?.inlineDesign;
-  if (!towerInline) return catalogBase;
+  const levelOv = activeTowerDesignOverrides?.[type];
+  const resolvedLevelOv =
+    typeof levelOv === 'string'
+      ? DESIGN_CATALOG.towers[levelOv] ?? { shape: levelOv }
+      : levelOv;
+  if (!towerInline && !resolvedLevelOv) return catalogBase;
   return {
     ...catalogBase,
-    ...towerInline,
+    ...(towerInline ?? {}),
+    ...(resolvedLevelOv ?? {}),
   };
 }
 
@@ -90,10 +106,16 @@ function getEnemyDesign(type: string): EnemyDesignConfig {
       codeLabel: DESIGN_CATALOG.defaultEnemy?.codeLabel || autoLabel,
     };
   const enemyInline = ENEMY_CATALOG.find((e) => e.type === type)?.inlineDesign;
-  if (!enemyInline) return catalogBase;
+  const levelOv = activeEnemyDesignOverrides?.[type];
+  const resolvedLevelOv =
+    typeof levelOv === 'string'
+      ? DESIGN_CATALOG.enemies[levelOv] ?? { shape: levelOv }
+      : levelOv;
+  if (!enemyInline && !resolvedLevelOv) return catalogBase;
   return {
     ...catalogBase,
-    ...enemyInline,
+    ...(enemyInline ?? {}),
+    ...(resolvedLevelOv ?? {}),
   };
 }
 
@@ -117,6 +139,9 @@ export interface RenderState {
   gridRows?: number;
   gridCols?: number;
   boardOverride?: Partial<BoardDesignConfig>;
+  laneLabels?: string[];
+  towerDesignOverrides?: Record<string, Partial<TowerDesignConfig> | string>;
+  enemyDesignOverrides?: Record<string, Partial<EnemyDesignConfig> | string>;
   blockedCells?: BlockedCellConfig[];
   tileModifiers?: TileModifierConfig[];
   tileOverrides?: TileOverrideConfig[];
@@ -443,6 +468,8 @@ export function pxToCell(
 }
 
 export function renderBoard(ctx: CanvasRenderingContext2D, state: RenderState) {
+  activeTowerDesignOverrides = state.towerDesignOverrides;
+  activeEnemyDesignOverrides = state.enemyDesignOverrides;
   const gridRows = state.gridRows ?? GRID_ROWS;
   const gridCols = state.gridCols ?? GRID_COLS;
   const { width: canvasW, height: canvasH } = getCanvasDimensions(gridRows, gridCols);
@@ -602,13 +629,18 @@ export function renderBoard(ctx: CanvasRenderingContext2D, state: RenderState) {
     ctx.lineTo(gateWidth + boardW, laneY);
     ctx.stroke();
 
-    if (board.showLaneNumbers) {
+    const customLaneLabel = state.laneLabels?.[r];
+    if (customLaneLabel || board.showLaneNumbers) {
       ctx.save();
-      ctx.fillStyle = board.laneNumberColor ?? 'rgba(148, 163, 184, 0.45)';
+      ctx.fillStyle = board.laneNumberColor ?? 'rgba(148, 163, 184, 0.55)';
       ctx.font = 'bold 9px "JetBrains Mono", monospace';
       ctx.textAlign = 'left';
       ctx.textBaseline = 'top';
-      ctx.fillText(`${board.laneLabelPrefix ?? 'F'}${r + 1}`, gateWidth + 4, laneY + 4);
+      ctx.fillText(
+        customLaneLabel ?? `${board.laneLabelPrefix ?? 'F'}${r + 1}`,
+        gateWidth + 4,
+        laneY + 4
+      );
       ctx.restore();
     }
   }
@@ -1736,16 +1768,25 @@ function drawTower(ctx: CanvasRenderingContext2D, tower: Tower, time: number) {
       ? 1 + Math.sin(time * td.breatheSpeed) * td.breatheAmp
       : 1;
   const scale = (td.scale ?? 1) * breathe;
-  const offsetX = td.offsetX ?? 0;
+  const squash =
+    td.squashAmp && (td.squashSpeed ?? 3.6)
+      ? Math.sin(time * (td.squashSpeed ?? 3.6)) * td.squashAmp
+      : 0;
+  const scaleX = (td.scaleX ?? 1) * scale * (1 + squash);
+  const scaleY = (td.scaleY ?? 1) * scale * Math.max(0.25, 1 - squash);
+  const swayX = td.swayAmp ? Math.sin(time * (td.swaySpeed ?? 2.0)) * td.swayAmp : 0;
+  const offsetX = (td.offsetX ?? 0) + swayX;
   const offsetY =
     (td.offsetY ?? 0) +
     (td.bobAmount && td.bobSpeed ? Math.sin(time * td.bobSpeed) * td.bobAmount : 0);
-  const rotRad = ((td.rotationDeg ?? 0) * Math.PI) / 180;
+  const tiltDeg = td.tiltAmpDeg ? Math.sin(time * (td.tiltSpeed ?? 2.2)) * td.tiltAmpDeg : 0;
+  const spinDeg = td.spinDegPerSec ? (time * td.spinDegPerSec) % 360 : 0;
+  const rotRad = (((td.rotationDeg ?? 0) + tiltDeg + spinDeg) * Math.PI) / 180;
 
-  if (scale !== 1 || offsetX !== 0 || offsetY !== 0 || rotRad !== 0) {
+  if (scaleX !== 1 || scaleY !== 1 || offsetX !== 0 || offsetY !== 0 || rotRad !== 0) {
     ctx.translate(cx + offsetX, cy + offsetY);
     if (rotRad !== 0) ctx.rotate(rotRad);
-    if (scale !== 1) ctx.scale(scale, scale);
+    if (scaleX !== 1 || scaleY !== 1) ctx.scale(scaleX, scaleY);
     ctx.translate(-cx, -cy);
   }
 
@@ -2567,14 +2608,27 @@ function drawEnemy(
     ctx.stroke();
   }
 
-  const scale = ed.scale ?? 1;
-  const offsetX = ed.offsetX ?? 0;
+  const enemyBreathe =
+    ed.breatheAmp && (ed.breatheSpeed ?? 2.6)
+      ? 1 + Math.sin(time * (ed.breatheSpeed ?? 2.6)) * ed.breatheAmp
+      : 1;
+  const scale = (ed.scale ?? 1) * enemyBreathe;
+  const squash =
+    ed.squashAmp && (ed.squashSpeed ?? 3.6)
+      ? Math.sin(time * (ed.squashSpeed ?? 3.6)) * ed.squashAmp
+      : 0;
+  const scaleX = (ed.scaleX ?? 1) * scale * (1 + squash);
+  const scaleY = (ed.scaleY ?? 1) * scale * Math.max(0.25, 1 - squash);
+  const swayX = ed.swayAmp ? Math.sin(enemy.animPhase * (ed.swaySpeed ?? 2.0)) * ed.swayAmp : 0;
+  const offsetX = (ed.offsetX ?? 0) + swayX;
   const offsetY = ed.offsetY ?? 0;
-  const rotRad = ((ed.rotationDeg ?? 0) * Math.PI) / 180;
-  if (scale !== 1 || offsetX !== 0 || offsetY !== 0 || rotRad !== 0) {
+  const tiltDeg = ed.tiltAmpDeg ? Math.sin(enemy.animPhase * (ed.tiltSpeed ?? 2.2)) * ed.tiltAmpDeg : 0;
+  const spinDeg = ed.spinDegPerSec ? (time * ed.spinDegPerSec) % 360 : 0;
+  const rotRad = (((ed.rotationDeg ?? 0) + tiltDeg + spinDeg) * Math.PI) / 180;
+  if (scaleX !== 1 || scaleY !== 1 || offsetX !== 0 || offsetY !== 0 || rotRad !== 0) {
     ctx.translate(cx + offsetX, cy + offsetY);
     if (rotRad !== 0) ctx.rotate(rotRad);
-    if (scale !== 1) ctx.scale(scale, scale);
+    if (scaleX !== 1 || scaleY !== 1) ctx.scale(scaleX, scaleY);
     ctx.translate(-cx, -cy);
   }
 
@@ -3709,3 +3763,533 @@ function roundRect(
   ctx.arcTo(x, y, x + w, y, r);
   ctx.closePath();
 }
+
+export interface AlmanacPreviewRenderOptions {
+  kind: 'tower' | 'enemy';
+  entityType: string;
+  designId?: string;
+  designOverride?: Partial<TowerDesignConfig> | Partial<EnemyDesignConfig>;
+  animationState: AlmanacAnimationState;
+  time: number;
+  animConfig?: AlmanacAnimationConfig;
+  width: number;
+  height: number;
+  scale?: number;
+  pedestalColor?: string;
+  backdropColor?: string;
+  accentColor?: string;
+  showGrid?: boolean;
+  particleSystem?: ParticleSystem;
+}
+
+function withCanvasAlpha(color: string | undefined, alpha: number): string {
+  const fallback = `rgba(245, 158, 11, ${alpha})`;
+  if (!color) return fallback;
+  const trimmed = color.trim();
+  if (trimmed.startsWith('#')) {
+    const hex = trimmed.slice(1);
+    if (hex.length === 3 || hex.length === 4) {
+      const r = parseInt(hex[0] + hex[0], 16);
+      const g = parseInt(hex[1] + hex[1], 16);
+      const b = parseInt(hex[2] + hex[2], 16);
+      if (!Number.isNaN(r) && !Number.isNaN(g) && !Number.isNaN(b)) {
+        return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+      }
+    } else if (hex.length === 6 || hex.length === 8) {
+      const r = parseInt(hex.slice(0, 2), 16);
+      const g = parseInt(hex.slice(2, 4), 16);
+      const b = parseInt(hex.slice(4, 6), 16);
+      if (!Number.isNaN(r) && !Number.isNaN(g) && !Number.isNaN(b)) {
+        return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+      }
+    }
+    return fallback;
+  }
+  const rgbMatch = trimmed.match(/^rgba?\(\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)/i);
+  if (rgbMatch) {
+    return `rgba(${rgbMatch[1]}, ${rgbMatch[2]}, ${rgbMatch[3]}, ${alpha})`;
+  }
+  return fallback;
+}
+
+export function renderAlmanacPreview(
+  ctx: CanvasRenderingContext2D,
+  opts: AlmanacPreviewRenderOptions
+) {
+  const {
+    kind,
+    entityType,
+    designId,
+    designOverride,
+    animationState,
+    time,
+    animConfig,
+    width,
+    height,
+    accentColor = '#F59E0B',
+  } = opts;
+
+  const statePreset = animConfig?.states?.[animationState];
+  const speedMult = statePreset?.speed ?? animConfig?.speed ?? 1;
+  const animTime = time * Math.max(0.1, speedMult);
+
+  const entityDef =
+    kind === 'enemy'
+      ? ENEMY_CATALOG.find((e) => e.type === entityType)
+      : TOWER_CATALOG.find((t) => t.type === entityType);
+
+  const resolved = resolveSelectedDesignConfig(kind, entityType, DESIGN_CATALOG, {
+    designId,
+    entityInlineDesign: entityDef?.inlineDesign,
+    designOverride,
+    defaultCodeLabel:
+      kind === 'enemy'
+        ? (entityDef as { code?: string } | undefined)?.code?.replace(/^SCP-/i, '')
+        : undefined,
+  });
+
+  // Backdrop & Tactical Scanner Grid
+  ctx.clearRect(0, 0, width, height);
+  ctx.fillStyle = opts.backdropColor ?? animConfig?.backdropColor ?? '#0A0E14';
+  ctx.fillRect(0, 0, width, height);
+
+  const cx = width / 2;
+  const cy = height / 2 + 4;
+
+  const glowCol =
+    statePreset?.glowColor ?? animConfig?.glowColor ?? accentColor;
+  const glowGrad = ctx.createRadialGradient(cx, cy, 8, cx, cy, Math.max(width, height) * 0.48);
+  glowGrad.addColorStop(0, withCanvasAlpha(glowCol, 0.16));
+  glowGrad.addColorStop(0.6, withCanvasAlpha(glowCol, 0.04));
+  glowGrad.addColorStop(1, 'rgba(10, 14, 20, 0)');
+  ctx.fillStyle = glowGrad;
+  ctx.fillRect(0, 0, width, height);
+
+  const showGrid = opts.showGrid ?? animConfig?.showGrid ?? true;
+  if (showGrid) {
+    ctx.save();
+    ctx.strokeStyle = animConfig?.gridColor ?? 'rgba(148, 163, 184, 0.07)';
+    ctx.lineWidth = 1;
+    const step = Math.max(10, animConfig?.gridStep ?? 24);
+    for (let gx = step; gx < width; gx += step) {
+      ctx.beginPath();
+      ctx.moveTo(gx, 0);
+      ctx.lineTo(gx, height);
+      ctx.stroke();
+    }
+    for (let gy = step; gy < height; gy += step) {
+      ctx.beginPath();
+      ctx.moveTo(0, gy);
+      ctx.lineTo(width, gy);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  // Pedestal ring
+  const showPedestal = animConfig?.showPedestal ?? true;
+  if (showPedestal) {
+    const pedestalCol = opts.pedestalColor ?? animConfig?.pedestalColor ?? '#1E293B';
+    const pedestalStroke = animConfig?.pedestalStrokeColor ?? withCanvasAlpha(glowCol, 0.36);
+    const rx = animConfig?.pedestalRadiusX ?? 56;
+    const ry = animConfig?.pedestalRadiusY ?? 15;
+    ctx.save();
+    ctx.fillStyle = pedestalCol;
+    ctx.beginPath();
+    ctx.ellipse(cx, cy + 44, rx, ry, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = pedestalStroke;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.ellipse(cx, cy + 44, rx, ry, 0, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  const previewScale =
+    opts.scale ?? statePreset?.scale ?? animConfig?.scale ?? 1.48;
+  const floatAmp = statePreset?.floatAmp ?? animConfig?.floatAmp ?? 0;
+  const floatY = floatAmp ? Math.sin(animTime * 2.2) * floatAmp : 0;
+
+  const statuses = DESIGN_CATALOG.statuses;
+  const isSlowed = animationState === 'slowed';
+  const isBurning = animationState === 'burning';
+  const isStunned = animationState === 'stunned';
+  const isDisabled = animationState === 'disabled';
+  const isEnraged = animationState === 'enraged';
+  const isDamaged = animationState === 'damaged';
+  const isAttacking = animationState === 'attack';
+  const isAbility = animationState === 'ability';
+  const isWalking = animationState === 'walk';
+
+  const recoilInterval = statePreset?.recoilIntervalSec ?? animConfig?.recoilIntervalSec ?? 1.4;
+  const recoilCycle = recoilInterval > 0 ? (animTime % recoilInterval) / recoilInterval : 0;
+  const recoilStrength = statePreset?.recoilStrength ?? animConfig?.recoilStrength ?? 8;
+  const recoilOffset =
+    isAttacking && recoilCycle < 0.25
+      ? Math.sin((recoilCycle / 0.25) * Math.PI) * recoilStrength
+      : 0;
+
+  const lungeX =
+    resolved.renderAs === 'enemy' && isAttacking && recoilCycle < 0.28
+      ? -Math.sin((recoilCycle / 0.28) * Math.PI) * recoilStrength
+      : 0;
+
+  const hitFlash =
+    isDamaged ? Math.max(0, Math.sin(animTime * 9)) * 0.85 : 0;
+
+  // Stage motion & squash/tilt/sway/spin shared modifiers
+  const swayAmp = statePreset?.swayAmp ?? animConfig?.swayAmp ?? 0;
+  const swaySpeed = statePreset?.swaySpeed ?? animConfig?.swaySpeed ?? 2.0;
+  const swayX = swayAmp ? Math.sin(animTime * swaySpeed) * swayAmp : 0;
+
+  const tiltAmpDeg = statePreset?.tiltAmpDeg ?? animConfig?.tiltAmpDeg ?? 0;
+  const tiltSpeed = statePreset?.tiltSpeed ?? animConfig?.tiltSpeed ?? 2.2;
+  const tiltDeg = tiltAmpDeg ? Math.sin(animTime * tiltSpeed) * tiltAmpDeg : 0;
+
+  const squashAmp = statePreset?.squashAmp ?? animConfig?.squashAmp ?? 0;
+  const squashSpeed = statePreset?.squashSpeed ?? animConfig?.squashSpeed ?? 3.6;
+  const squash = squashAmp ? Math.sin(animTime * squashSpeed) * squashAmp : 0;
+
+  const spinDegPerSec = statePreset?.spinDegPerSec ?? animConfig?.spinDegPerSec ?? 0;
+  const spinDeg = spinDegPerSec ? (animTime * spinDegPerSec) % 360 : 0;
+
+  const stageScaleX = (statePreset?.scaleX ?? animConfig?.scaleX ?? 1) * previewScale * (1 + squash);
+  const stageScaleY =
+    (statePreset?.scaleY ?? animConfig?.scaleY ?? 1) * previewScale * Math.max(0.25, 1 - squash);
+
+  ctx.save();
+  ctx.translate(cx + lungeX + swayX, cy + floatY);
+  if (tiltDeg !== 0 || spinDeg !== 0) {
+    ctx.rotate(((tiltDeg + spinDeg) * Math.PI) / 180);
+  }
+  ctx.scale(stageScaleX, stageScaleY);
+  ctx.translate(-cx, -cy);
+
+  if (resolved.renderAs === 'tower') {
+    const td = resolved.towerDesign;
+    const cellSize = BOARD_LAYOUT.cellSize;
+    const x = cx - cellSize / 2;
+    const y = cy - cellSize / 2;
+
+    const breatheAmp =
+      statePreset?.breatheAmp ?? animConfig?.breatheAmp ?? td.breatheAmp ?? 0.025;
+    const breatheSpeed =
+      statePreset?.breatheSpeed ?? animConfig?.breatheSpeed ?? td.breatheSpeed ?? 2.6;
+    const breathe =
+      animationState === 'idle' || animationState === 'ability' || isWalking
+        ? 1 + Math.sin(animTime * breatheSpeed) * breatheAmp
+        : 1;
+
+    const bobSpeed = statePreset?.bobSpeed ?? animConfig?.bobSpeed ?? td.bobSpeed ?? (isWalking ? 7 : 0);
+    const bobAmt = statePreset?.bobAmount ?? animConfig?.bobAmount ?? td.bobAmount ?? (isWalking ? 2.5 : 0);
+    const bobY = bobSpeed > 0 && bobAmt !== 0 ? Math.sin(animTime * bobSpeed) * bobAmt : 0;
+
+    const syntheticTower: Tower = {
+      id: 'preview_tower',
+      type: entityType,
+      category: 'personal',
+      row: 0,
+      col: 0,
+      hp: isDamaged ? 35 : 100,
+      maxHp: 100,
+      actionTimer: 0,
+      armProgress: 1,
+      isArmed: true,
+      suppressed: isDisabled,
+      hypnotized: false,
+      radioProtected: false,
+      stunTimer: isStunned ? 1 : 0,
+      deafTimer: 0,
+      immuneToPsych: false,
+      recoil: recoilOffset,
+      hitFlash,
+    };
+
+    ctx.save();
+    if (isDisabled) {
+      ctx.globalAlpha *= statuses?.disabledAlpha ?? 0.62;
+    }
+
+    if (isAbility || td.auraColor) {
+      const auraR = (td.auraRadius ?? 28) + Math.sin(animTime * 4) * 3;
+      ctx.fillStyle = td.auraColor ?? withCanvasAlpha(accentColor, 0.16);
+      ctx.beginPath();
+      ctx.arc(cx, cy, auraR, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    if (isEnraged) {
+      ctx.strokeStyle = 'rgba(239, 68, 68, 0.85)';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(cx, cy, 28 + Math.sin(animTime * 10) * 2, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+
+    const baseScale = (td.scale ?? 1) * breathe;
+    const sx = (td.scaleX ?? 1) * baseScale;
+    const sy = (td.scaleY ?? 1) * baseScale;
+    const ox = td.offsetX ?? 0;
+    const oy = (td.offsetY ?? 0) + bobY;
+    const rotRad = (((statePreset?.rotationDeg ?? td.rotationDeg) ?? 0) * Math.PI) / 180;
+    if (sx !== 1 || sy !== 1 || ox !== 0 || oy !== 0 || rotRad !== 0) {
+      ctx.translate(cx + ox, cy + oy);
+      if (rotRad !== 0) ctx.rotate(rotRad);
+      if (sx !== 1 || sy !== 1) ctx.scale(sx, sy);
+      ctx.translate(-cx, -cy);
+    }
+
+    if (td.outlineGlowColor ?? td.glowColor ?? statePreset?.glowColor) {
+      ctx.shadowColor = statePreset?.glowColor ?? td.outlineGlowColor ?? td.glowColor ?? '#FFFFFF';
+      ctx.shadowBlur = td.outlineGlowBlur ?? td.glowBlur ?? 10;
+    }
+
+    const spriteImg = getCachedImage(td.sprite);
+    const spriteMode: SpriteRenderMode = td.spriteMode ?? 'replace';
+    const spriteW = td.spriteWidth ?? cellSize * 0.82;
+    const spriteH = td.spriteHeight ?? cellSize * 0.82;
+
+    if (spriteImg && spriteMode === 'under') {
+      drawSpriteAt(ctx, spriteImg, cx - recoilOffset * 0.3, cy, spriteW, spriteH, {
+        offsetX: td.spriteOffsetX,
+        offsetY: td.spriteOffsetY,
+        flipX: td.spriteFlipX,
+        opacity: td.spriteOpacity,
+      });
+    }
+
+    if (!spriteImg || spriteMode !== 'replace') {
+      drawTowerVectorShape(
+        ctx,
+        syntheticTower,
+        td,
+        cx,
+        cy,
+        x,
+        y,
+        cellSize,
+        recoilOffset,
+        isDisabled || isStunned,
+        animTime
+      );
+    }
+
+    if (spriteImg && (spriteMode === 'replace' || spriteMode === 'over')) {
+      drawSpriteAt(ctx, spriteImg, cx - recoilOffset * 0.3, cy, spriteW, spriteH, {
+        offsetX: td.spriteOffsetX,
+        offsetY: td.spriteOffsetY,
+        flipX: td.spriteFlipX,
+        opacity: td.spriteOpacity,
+      });
+    }
+
+    if (isAttacking && recoilCycle < 0.16) {
+      ctx.fillStyle = 'rgba(251, 191, 36, 0.85)';
+      ctx.beginPath();
+      ctx.arc(cx + 26 - recoilOffset * 0.4, cy + 2, 5.5 * (1 - recoilCycle / 0.16), 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    if (hitFlash > 0.05) {
+      const hitRgb = statuses?.towerHitFlashRgb ?? '239, 68, 68';
+      ctx.fillStyle = `rgba(${hitRgb}, ${hitFlash * 0.45})`;
+      ctx.beginPath();
+      ctx.arc(cx, cy, 24, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    if (isStunned) {
+      ctx.strokeStyle = 'rgba(56, 189, 248, 0.9)';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([4, 3]);
+      ctx.beginPath();
+      ctx.arc(cx, cy, 25, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+
+    ctx.restore();
+  } else {
+    const ed = resolved.enemyDesign;
+    const shape = ed.shape ?? entityType;
+    const bobSpeed =
+      statePreset?.bobSpeed ??
+      animConfig?.bobSpeed ??
+      (isEnraged ? 14 : isWalking || isAttacking ? (ed.bobSpeed ?? 6) : 2.2);
+    const bobAmt =
+      statePreset?.bobAmount ??
+      animConfig?.bobAmount ??
+      (isWalking || isAttacking || isEnraged ? (ed.bobAmount ?? 2.5) : 1.1);
+    const bob = bobSpeed > 0 && bobAmt !== 0 ? Math.sin(animTime * bobSpeed) * bobAmt : 0;
+    const shakeX =
+      isEnraged || isStunned
+        ? Math.sin(animTime * 38) * (isEnraged ? 2.5 : 1.5)
+        : 0;
+
+    const syntheticEnemy: Enemy = {
+      id: 'preview_enemy',
+      type: entityType,
+      row: 0,
+      occupiedRows: [0],
+      col: 0,
+      hp: isDamaged ? 35 : 100,
+      maxHp: 100,
+      baseSpeed: 0.4,
+      currentSpeed: 0.4,
+      dps: 20,
+      slowTimer: isSlowed ? 1 : 0,
+      slowFactor: isSlowed ? 0.5 : 0,
+      burnTimer: isBurning ? 1 : 0,
+      burnDps: isBurning ? 15 : 0,
+      stunTimer: isStunned ? 1 : 0,
+      hitFlash,
+      animPhase: animTime,
+      blinkMoveTimer: 4,
+      hasRevived: false,
+      isAttacking,
+      skyOffsetRows: 0,
+      pullTimer: 5,
+      phase096: isEnraged ? 'enraged' : 'calm',
+      convulseTimer: 0,
+      vaseSpawnTimer: 3,
+      screamTimer066: 5,
+      phase079Triggered: false,
+    };
+
+    ctx.save();
+    if (isDisabled) {
+      ctx.globalAlpha *= statuses?.disabledAlpha ?? 0.62;
+    }
+
+    if (isAbility || isEnraged || ed.aura) {
+      const auraCol = isEnraged
+        ? 'rgba(239, 68, 68, 0.22)'
+        : ed.aura ?? withCanvasAlpha(accentColor, 0.16);
+      const auraR = (ed.auraRadius ?? 28) + Math.sin(animTime * 5) * 3;
+      ctx.fillStyle = auraCol;
+      ctx.beginPath();
+      ctx.arc(cx, cy, auraR, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    const breatheAmp =
+      statePreset?.breatheAmp ?? animConfig?.breatheAmp ?? ed.breatheAmp ?? 0;
+    const breatheSpeed =
+      statePreset?.breatheSpeed ?? animConfig?.breatheSpeed ?? ed.breatheSpeed ?? 2.6;
+    const breathe = breatheAmp ? 1 + Math.sin(animTime * breatheSpeed) * breatheAmp : 1;
+    const baseScale = (ed.scale ?? 1) * breathe;
+    const sx = (ed.scaleX ?? 1) * baseScale;
+    const sy = (ed.scaleY ?? 1) * baseScale;
+    const ox = ed.offsetX ?? 0;
+    const oy = ed.offsetY ?? 0;
+    const rotRad = (((statePreset?.rotationDeg ?? ed.rotationDeg) ?? 0) * Math.PI) / 180;
+    if (sx !== 1 || sy !== 1 || ox !== 0 || oy !== 0 || rotRad !== 0) {
+      ctx.translate(cx + ox, cy + oy);
+      if (rotRad !== 0) ctx.rotate(rotRad);
+      if (sx !== 1 || sy !== 1) ctx.scale(sx, sy);
+      ctx.translate(-cx, -cy);
+    }
+
+    if (statePreset?.glowColor ?? ed.glowColor) {
+      ctx.shadowColor = statePreset?.glowColor ?? ed.glowColor ?? accentColor;
+      ctx.shadowBlur = ed.glowBlur ?? 10;
+    }
+
+    const spriteImg = getCachedImage(ed.sprite);
+    const spriteMode: SpriteRenderMode = ed.spriteMode ?? 'replace';
+    const spriteW = ed.spriteWidth ?? BOARD_LAYOUT.cellSize * 0.82;
+    const spriteH = ed.spriteHeight ?? BOARD_LAYOUT.cellSize * 0.82;
+
+    if (spriteImg && spriteMode === 'under') {
+      drawSpriteAt(ctx, spriteImg, cx + shakeX, cy + bob * 0.5, spriteW, spriteH, {
+        offsetX: ed.spriteOffsetX,
+        offsetY: ed.spriteOffsetY,
+        flipX: ed.spriteFlipX,
+        opacity: ed.spriteOpacity,
+      });
+    }
+
+    if (!spriteImg || spriteMode !== 'replace') {
+      drawEnemyVectorShape(
+        ctx,
+        syntheticEnemy,
+        ed,
+        shape,
+        cx,
+        cy,
+        bob,
+        shakeX,
+        isSlowed,
+        animTime
+      );
+    }
+
+    if (spriteImg && (spriteMode === 'replace' || spriteMode === 'over')) {
+      drawSpriteAt(ctx, spriteImg, cx + shakeX, cy + bob * 0.5, spriteW, spriteH, {
+        offsetX: ed.spriteOffsetX,
+        offsetY: ed.spriteOffsetY,
+        flipX: ed.spriteFlipX,
+        opacity: ed.spriteOpacity,
+      });
+    }
+
+    if (isBurning) {
+      ctx.strokeStyle = ed.burnTint ?? statuses?.burnRingColor ?? 'rgba(249, 115, 22, 0.85)';
+      ctx.lineWidth = statuses?.burnRingWidth ?? 2;
+      ctx.beginPath();
+      ctx.arc(cx, cy, 22 + Math.sin(animTime * 8) * 1.5, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+
+    if (isStunned) {
+      ctx.strokeStyle = ed.stunRingColor ?? 'rgba(56, 189, 248, 0.9)';
+      ctx.lineWidth = 2.5;
+      ctx.setLineDash([4, 3]);
+      ctx.beginPath();
+      ctx.arc(cx, cy, 24, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+
+    if (hitFlash > 0.05) {
+      const hitRgb = statuses?.enemyHitFlashRgb ?? '255, 255, 255';
+      ctx.fillStyle = `rgba(${hitRgb}, ${hitFlash * 0.5})`;
+      ctx.beginPath();
+      ctx.arc(cx, cy, 22, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    ctx.restore();
+  }
+
+  ctx.restore();
+
+  // Optional tactical orbit wisps in almanac stage
+  const orbitCount = Math.max(0, Math.floor(animConfig?.orbitCount ?? 0));
+  if (orbitCount > 0) {
+    const orbitR = animConfig?.orbitRadius ?? 42;
+    const orbitSpd = animConfig?.orbitSpeed ?? 1.6;
+    const orbitCol = animConfig?.orbitColor ?? withCanvasAlpha(glowCol, 0.72);
+    ctx.save();
+    for (let i = 0; i < orbitCount; i++) {
+      const angle = animTime * orbitSpd + (i * Math.PI * 2) / orbitCount;
+      const ox = cx + Math.cos(angle) * orbitR;
+      const oy = cy + Math.sin(angle) * (orbitR * 0.36);
+      ctx.fillStyle = orbitCol;
+      ctx.beginPath();
+      ctx.arc(ox, oy, 3, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  if (opts.particleSystem) {
+    renderParticleSystem(ctx, opts.particleSystem, {
+      gateWidth: cx - BOARD_LAYOUT.cellSize / 2,
+      padTop: cy - BOARD_LAYOUT.cellSize / 2,
+      cellSize: BOARD_LAYOUT.cellSize,
+    }, getCachedImage);
+  }
+}
+

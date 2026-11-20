@@ -18,7 +18,7 @@ import {
   XCircle,
   Zap,
 } from 'lucide-react';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   DESIGN_CATALOG,
   DIALOGUES_CATALOG,
@@ -38,8 +38,10 @@ import {
   canPlaceTowerAt,
   collectEnergyDropInSim,
   createInitialSim,
+  getEffectiveGameplay,
   getEffectiveTowerCooldown,
   getEffectiveTowerCost,
+  getEffectiveTowerDef,
   notifyDialogueCompletedInSim,
   placeTowerInSim,
   removeTowerInSim,
@@ -48,9 +50,11 @@ import {
 } from '../engine/simulation';
 import {
   DialogueDefinition,
+  EnemyDesignConfig,
   GameState,
   LevelConfig,
   ObjectiveProgressState,
+  TowerDesignConfig,
   TowerType,
 } from '../types/game';
 import { soundEngine } from '../utils/sound';
@@ -116,6 +120,7 @@ export function GameBoard({
     objectives: ObjectiveProgressState[];
     defeatReason?: string;
     endlessCycle: number;
+    prepTimer: number;
   }>({
     energy: levelConfig.startingEnergy,
     progress: 0,
@@ -128,6 +133,7 @@ export function GameBoard({
     objectives: simRef.current.objectives.map((o) => ({ ...o })),
     defeatReason: undefined,
     endlessCycle: 0,
+    prepTimer: simRef.current.prepTimer,
   });
 
   const gameStateRef = useRef<GameState>(gameState);
@@ -153,6 +159,42 @@ export function GameBoard({
 
   const activeDialogueRef = useRef(activeDialogue);
   activeDialogueRef.current = activeDialogue;
+
+  const towerDesignOverrides = useMemo(() => {
+    const out: Record<string, Partial<TowerDesignConfig> | string> = {};
+    if (levelConfig.towerOverrides) {
+      for (const [k, v] of Object.entries(levelConfig.towerOverrides)) {
+        if (v?.design) out[k] = v.design;
+      }
+    }
+    return out;
+  }, [levelConfig.towerOverrides]);
+
+  const enemyDesignOverrides = useMemo(() => {
+    const out: Record<string, Partial<EnemyDesignConfig> | string> = {};
+    if (levelConfig.enemyOverrides) {
+      for (const [k, v] of Object.entries(levelConfig.enemyOverrides)) {
+        if (v?.design) out[k] = v.design;
+      }
+    }
+    return out;
+  }, [levelConfig.enemyOverrides]);
+
+  const designOverridesRef = useRef({
+    towerDesignOverrides,
+    enemyDesignOverrides,
+  });
+  designOverridesRef.current = { towerDesignOverrides, enemyDesignOverrides };
+
+  useEffect(() => {
+    if (gameState === 'VICTORY' || gameState === 'GAME_OVER') {
+      document.body.dataset.state = 'gameover';
+    } else if (gameState === 'PAUSED' || dossierOpen || Boolean(activeDialogue)) {
+      document.body.dataset.state = 'paused';
+    } else {
+      document.body.dataset.state = 'playing';
+    }
+  }, [gameState, dossierOpen, activeDialogue]);
 
   const resolveDialogueDef = useCallback(
     (dialogueId?: string, inlineDialogue?: DialogueDefinition): DialogueDefinition | null => {
@@ -238,6 +280,7 @@ export function GameBoard({
       objectives: s.objectives.map((o) => ({ ...o })),
       defeatReason: s.defeatReason,
       endlessCycle: s.endlessCycle ?? 0,
+      prepTimer: s.prepTimer,
     });
   }, []);
 
@@ -309,7 +352,13 @@ export function GameBoard({
     });
   }, []);
 
-  const deckDefs = TOWER_CATALOG.filter((t) => activeDeck.includes(t.type));
+  const deckDefs = useMemo(
+    () =>
+      TOWER_CATALOG.filter((t) => activeDeck.includes(t.type)).map(
+        (t) => getEffectiveTowerDef(t.type, levelConfig) ?? t
+      ),
+    [activeDeck, levelConfig]
+  );
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -447,6 +496,9 @@ export function GameBoard({
             gridRows: s.gridRows,
             gridCols: s.gridCols,
             boardOverride: s.boardOverride,
+            laneLabels: s.levelConfig.laneLabels,
+            towerDesignOverrides: designOverridesRef.current.towerDesignOverrides,
+            enemyDesignOverrides: designOverridesRef.current.enemyDesignOverrides,
             blockedCells: s.blockedCells,
             tileModifiers: s.tileModifiers,
             tileOverrides: s.tileOverrides,
@@ -548,14 +600,29 @@ export function GameBoard({
     .map((t) => ENEMY_CATALOG.find((e) => e.type === t)?.code ?? t)
     .join(' · ');
 
-  const hudTheme = DESIGN_CATALOG.hudTheme;
+  const uiTheme = GAME_CONFIG.ui?.theme;
+  const hudUi = GAME_CONFIG.ui?.hud;
+  const effectiveGameplay = useMemo(
+    () => getEffectiveGameplay(levelConfig),
+    [levelConfig]
+  );
+
+  const hudTheme = {
+    ...(uiTheme?.panelBg ? { panelBg: uiTheme.panelBg } : {}),
+    ...(uiTheme?.panelBorder ? { panelBorder: uiTheme.panelBorder } : {}),
+    ...DESIGN_CATALOG.hudTheme,
+    ...(levelConfig.hudOverride ?? {}),
+  };
   const currentCatalogIdx = LEVEL_CATALOG.findIndex((l) => l.level === levelConfig.level);
   const hasNextLevel = currentCatalogIdx >= 0 && currentCatalogIdx + 1 < LEVEL_CATALOG.length;
 
   let keyCounter = 0;
 
   return (
-    <div className="flex h-screen w-screen flex-col overflow-hidden bg-[#0E1217] text-slate-100">
+    <div
+      className="flex h-screen w-screen flex-col overflow-hidden bg-[#0E1217] text-slate-100"
+      style={uiTheme?.surfaceBg ? { backgroundColor: uiTheme.surfaceBg } : undefined}
+    >
       {/* Top HUD Bar */}
       <header
         className="shrink-0 border-b border-slate-800 bg-[#131820] px-4 py-2"
@@ -571,13 +638,13 @@ export function GameBoard({
               onClick={onBackToMenu}
               className="font-display text-xl font-bold tracking-wide whitespace-nowrap text-white transition-colors hover:text-amber-400"
             >
-              Sitio-19
+              {GAME_CONFIG.ui?.titleScreen?.title ?? 'Sitio-19'}
             </button>
 
             <div className="flex flex-wrap items-center gap-3 text-xs sm:text-sm">
               <div className="flex items-center gap-1.5 font-semibold text-amber-400">
                 <Zap className="h-4 w-4 fill-amber-400/20" />
-                <span>Energía:</span>
+                <span>{hudUi?.energyLabel ?? 'Energía'}:</span>
                 <span className="font-mono-num text-base font-bold text-white">{hud.energy}</span>
               </div>
 
@@ -632,12 +699,12 @@ export function GameBoard({
               {gameState === 'PAUSED' ? (
                 <>
                   <Play className="h-3.5 w-3.5" />
-                  Reanudar
+                  {hudUi?.resumeButtonLabel ?? 'Reanudar'}
                 </>
               ) : (
                 <>
                   <Pause className="h-3.5 w-3.5" />
-                  Pausar
+                  {hudUi?.pauseButtonLabel ?? 'Pausar'}
                 </>
               )}
             </button>
@@ -648,7 +715,7 @@ export function GameBoard({
               className="inline-flex items-center gap-1 rounded-lg border border-slate-700 bg-slate-800/80 px-2.5 py-1.5 text-xs font-semibold whitespace-nowrap text-slate-200 transition-colors hover:bg-slate-700"
             >
               <BookOpen className="h-3.5 w-3.5" />
-              Archivo
+              {hudUi?.almanacButtonLabel ?? 'Archivo'}
             </button>
 
             <button
@@ -705,9 +772,14 @@ export function GameBoard({
                     const effectiveCost = getEffectiveTowerCost(
                       card.type,
                       levelConfig.rules,
-                      simRef.current
+                      simRef.current,
+                      levelConfig
                     );
-                    const effectiveCd = getEffectiveTowerCooldown(card.type, levelConfig.rules);
+                    const effectiveCd = getEffectiveTowerCooldown(
+                      card.type,
+                      levelConfig.rules,
+                      levelConfig
+                    );
                     const cd = hud.cooldowns[card.type] ?? 0;
                     const affordable = hud.energy >= effectiveCost;
                     const ready = affordable && cd <= 0;
@@ -771,9 +843,14 @@ export function GameBoard({
                     const effectiveCost = getEffectiveTowerCost(
                       card.type,
                       levelConfig.rules,
-                      simRef.current
+                      simRef.current,
+                      levelConfig
                     );
-                    const effectiveCd = getEffectiveTowerCooldown(card.type, levelConfig.rules);
+                    const effectiveCd = getEffectiveTowerCooldown(
+                      card.type,
+                      levelConfig.rules,
+                      levelConfig
+                    );
                     const cd = hud.cooldowns[card.type] ?? 0;
                     const affordable = hud.energy >= effectiveCost;
                     const ready = affordable && cd <= 0;
@@ -831,7 +908,7 @@ export function GameBoard({
           <button
             type="button"
             onClick={() => setSelectedTool(selectedTool === 'remove' ? null : 'remove')}
-            title="Retirar unidad desplegada (reembolsa 25% de energía). Tecla X."
+            title={`Retirar unidad desplegada (reembolsa ${Math.round(effectiveGameplay.removeRefundRatio * 100)}% de energía). Tecla X.`}
             className={`flex shrink-0 items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors ${
               selectedTool === 'remove'
                 ? 'border-red-500 bg-red-500/20 text-red-200 ring-1 ring-red-400/70'
@@ -839,16 +916,23 @@ export function GameBoard({
             }`}
           >
             <Trash2 className="h-3.5 w-3.5 text-red-400" />
-            <span>Retirar (X)</span>
+            <span>{hudUi?.retreatButtonLabel ?? 'Retirar'} (X)</span>
           </button>
         </section>
 
         {/* Alert / Enemy Roster Strip */}
         <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 px-1 text-xs">
-          <p className="font-medium text-amber-300">
-            {hud.announcement ||
-              `Recoge las celdas de energía (+${GAME_CONFIG.gameplay.energyDropAmount}) y defiende las ${levelConfig.gridRows} filas del Sector (${levelConfig.gridCols}x${levelConfig.gridRows}).`}
-          </p>
+          <div className="flex flex-wrap items-center gap-2">
+            {hud.prepTimer > 0 && (
+              <span className="font-mono-num rounded border border-sky-500/50 bg-sky-950/60 px-2 py-0.5 text-[11px] font-bold text-sky-300">
+                Preparación: {Math.ceil(hud.prepTimer)}s
+              </span>
+            )}
+            <p className="font-medium text-amber-300">
+              {hud.announcement ||
+                `Recoge las celdas de energía (+${effectiveGameplay.energyDropAmount}) y defiende las ${levelConfig.gridRows} filas del Sector (${levelConfig.gridCols}x${levelConfig.gridRows}).`}
+            </p>
+          </div>
           <span className="font-mono-num text-slate-400">
             {levelConfig.victoryCondition?.mode === 'endless' && hud.endlessCycle > 0
               ? `Ciclo ${hud.endlessCycle + 1} · `
@@ -913,6 +997,7 @@ export function GameBoard({
             >
               <canvas
                 ref={canvasRef}
+                data-testid="game-board-canvas"
                 width={canvasWidth}
                 height={canvasHeight}
                 onMouseMove={handleCanvasMove}
@@ -1009,14 +1094,18 @@ export function GameBoard({
                     <h2 className="font-display mt-2 text-4xl font-bold text-white">
                       {gameState === 'VICTORY'
                         ? levelConfig.victoryCondition?.victoryTitle ??
+                          hudUi?.victoryTitle ??
                           `Nivel ${levelConfig.level} Completado`
-                        : 'Sitio-19 Comprometido'}
+                        : levelConfig.customDefeatTitle ??
+                          hudUi?.defeatTitle ??
+                          'Sitio-19 Comprometido'}
                     </h2>
                     <p className="mt-2 text-sm text-slate-300">
                       {gameState === 'VICTORY'
                         ? levelConfig.victoryCondition?.victorySubtitle ??
                           (levelConfig.rewardLabel || 'Sector asegurado sin brechas.')
                         : hud.defeatReason ||
+                          levelConfig.customDefeatSubtitle ||
                           'Un SCP cruzó una fila sin puerta Tesla de emergencia disponible.'}
                     </p>
 

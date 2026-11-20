@@ -1,17 +1,21 @@
-import { Play, SlidersHorizontal, Sparkles, User, X } from 'lucide-react';
+import { AlertTriangle, BookMarked, Play, SlidersHorizontal, Sparkles, User, X } from 'lucide-react';
 import { useRef, useState } from 'react';
 import {
+  CATALOG_DIAGNOSTICS,
+  CATALOGUE_SOURCE_FILES,
   CHARACTERS_CATALOG,
   DIALOGUES_CATALOG,
   EFFECTS_CATALOG,
   ENEMY_CATALOG,
   EVENTS_CATALOG,
+  GAME_CONFIG,
   GRID_COLS,
   GRID_ROWS,
   OBJECTIVES_CATALOG,
   PARTICLES_CATALOG,
   TOWER_CATALOG,
 } from '../data/scpCatalog';
+import { AlmanacPanel } from './AlmanacPanel';
 import { EffectJsonEditor } from './EffectJsonEditor';
 import { ParticleSystem, ParticleSystemHandle } from './ParticleSystem';
 
@@ -20,21 +24,19 @@ interface DossierModalProps {
 }
 
 export function DossierModal({ onClose }: DossierModalProps) {
+  const almanacUi = GAME_CONFIG.ui?.almanac;
   const [tab, setTab] = useState<
-    | 'enemies'
-    | 'towers'
+    | 'almanac'
     | 'effects'
     | 'objectives'
     | 'particles'
     | 'events'
     | 'characters'
     | 'dialogues'
-  >('enemies');
+  >('almanac');
   const [effectEditorOpen, setEffectEditorOpen] = useState(false);
   const [brokenCharPortraits, setBrokenCharPortraits] = useState<Record<string, boolean>>({});
 
-  const personalTowers = TOWER_CATALOG.filter((t) => t.category === 'personal');
-  const estructuraTowers = TOWER_CATALOG.filter((t) => t.category === 'estructura');
   const effectsList = Object.values(EFFECTS_CATALOG).filter((fx) => !fx.isTemplate);
   const objectivesList = Object.values(OBJECTIVES_CATALOG);
   const particlesList = Object.values(PARTICLES_CATALOG);
@@ -55,17 +57,22 @@ export function DossierModal({ onClose }: DossierModalProps) {
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4 backdrop-blur-xs"
       role="dialog"
       aria-modal="true"
-      aria-label="Archivo Táctico SCP"
+      aria-label={almanacUi?.modalTitle ?? 'Almanaque y Archivo Táctico SCP'}
     >
-      <div className="flex max-h-[88vh] w-full max-w-4xl flex-col overflow-hidden rounded-xl border border-slate-700/80 bg-[#141A22] shadow-2xl">
+      <div className="flex max-h-[90vh] w-full max-w-6xl flex-col overflow-hidden rounded-xl border border-slate-700/80 bg-[#141A22] shadow-2xl">
         <div className="flex items-center justify-between border-b border-slate-800 px-6 py-4">
           <div>
             <h2 className="font-display text-2xl font-bold tracking-wide text-slate-100">
-              Archivo Táctico de Contención
+              {almanacUi?.modalTitle ?? 'Almanaque y Archivo de Contención'}
             </h2>
             <p className="text-xs text-slate-400">
-              Tablero {GRID_COLS}x{GRID_ROWS} · {TOWER_CATALOG.length} Torres (Personal y Estructuras) ·{' '}
-              {ENEMY_CATALOG.length} Entidades SCP
+              {almanacUi?.modalSubtitle ??
+                `Tablero ${GRID_COLS}x${GRID_ROWS} · ${TOWER_CATALOG.length} Torres · ${ENEMY_CATALOG.length} Entidades SCP · JSON / JSONC / TOML`}
+              {CATALOGUE_SOURCE_FILES.length > 0 && (
+                <span className="ml-2 text-amber-300/90">
+                  · Manifiesto: {CATALOGUE_SOURCE_FILES.join(', ')}
+                </span>
+              )}
             </p>
           </div>
           <button
@@ -79,24 +86,15 @@ export function DossierModal({ onClose }: DossierModalProps) {
 
         <div className="flex flex-wrap items-center gap-2 border-b border-slate-800 px-6 py-3">
           <button
-            onClick={() => setTab('enemies')}
-            className={`rounded-md px-4 py-2 text-sm font-semibold whitespace-nowrap transition-colors ${
-              tab === 'enemies'
+            onClick={() => setTab('almanac')}
+            className={`inline-flex items-center gap-1.5 rounded-md px-4 py-2 text-sm font-semibold whitespace-nowrap transition-colors ${
+              tab === 'almanac'
                 ? 'bg-amber-500 text-slate-950'
                 : 'bg-slate-800/70 text-slate-300 hover:bg-slate-800 hover:text-white'
             }`}
           >
-            Amenazas SCP ({ENEMY_CATALOG.length})
-          </button>
-          <button
-            onClick={() => setTab('towers')}
-            className={`rounded-md px-4 py-2 text-sm font-semibold whitespace-nowrap transition-colors ${
-              tab === 'towers'
-                ? 'bg-amber-500 text-slate-950'
-                : 'bg-slate-800/70 text-slate-300 hover:bg-slate-800 hover:text-white'
-            }`}
-          >
-            Personal y Estructuras ({TOWER_CATALOG.length})
+            <BookMarked className="h-4 w-4" />
+            Almanaque SCP y Torres ({ENEMY_CATALOG.length + TOWER_CATALOG.length})
           </button>
           <button
             onClick={() => setTab('effects')}
@@ -160,175 +158,37 @@ export function DossierModal({ onClose }: DossierModalProps) {
           </button>
         </div>
 
-        <div className="overflow-y-auto p-6">
-          {tab === 'enemies' && (
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-              {ENEMY_CATALOG.map((enemy) => {
-                const traits: string[] = [];
-                if (enemy.behavior?.initialShieldHp) {
-                  traits.push(`Escudo ${enemy.behavior.initialShieldHp}`);
-                }
-                if (enemy.behavior?.damageReduction) {
-                  traits.push(`Armadura ${Math.round(enemy.behavior.damageReduction * 100)}%`);
-                }
-                if (enemy.behavior?.regenHpPerSec) {
-                  traits.push(`Regen ${enemy.behavior.regenHpPerSec}/s`);
-                }
-                if (enemy.behavior?.untargetableUntilCol !== undefined) {
-                  traits.push(`Sigilo col > ${enemy.behavior.untargetableUntilCol}`);
-                }
-                if (enemy.behavior?.rangedAttack) {
-                  traits.push(`Distancia ${enemy.behavior.rangedAttack.rangeCols}c`);
-                }
-                if (enemy.behavior?.onDeathSplit) {
-                  traits.push(`Divide x${enemy.behavior.onDeathSplit.count}`);
-                }
-                if (enemy.behavior?.onDeathExplosion) {
-                  traits.push(`Explota ${enemy.behavior.onDeathExplosion.damage} dmg`);
-                }
-
-                return (
-                  <article
-                    key={enemy.type}
-                    className="flex gap-4 rounded-lg border border-slate-800 bg-[#1A212B] p-4"
-                  >
-                    <div className="h-24 w-24 shrink-0 overflow-hidden rounded-md border border-slate-700 bg-slate-900">
-                      <img
-                        src={enemy.portrait}
-                        alt={`${enemy.code} ${enemy.name}`}
-                        referrerPolicy="no-referrer"
-                        className="h-full w-full object-cover"
-                      />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <h3 className="font-display text-xl font-bold text-slate-100">
-                        {enemy.code} · {enemy.name}
-                      </h3>
-                      <p className="mt-0.5 text-xs text-amber-400/90 tabular-nums">
-                        {enemy.classification} · Salud {enemy.hp} · Vel {enemy.speed} · Daño {enemy.dps}/s
-                      </p>
-                      {traits.length > 0 && (
-                        <p className="font-mono-num mt-1 text-[11px] text-sky-300">
-                          {traits.join(' · ')}
-                        </p>
-                      )}
-                      <p className="mt-2 text-xs leading-relaxed text-slate-300">{enemy.summary}</p>
-                      <p className="mt-2 text-xs leading-relaxed text-slate-400">
-                        <strong className="font-semibold text-slate-200">Táctica:</strong>{' '}
-                        {enemy.tacticalNote}
-                      </p>
-                    </div>
-                  </article>
-                );
-              })}
+        <div className="overflow-y-auto p-5">
+          {CATALOG_DIAGNOSTICS.length > 0 && (
+            <div className="mb-4 rounded-lg border border-amber-500/60 bg-amber-950/35 px-4 py-2.5 text-xs text-amber-200">
+              <div className="flex items-center gap-2 font-bold">
+                <AlertTriangle className="h-4 w-4 shrink-0 text-amber-400" />
+                <span>
+                  {CATALOG_DIAGNOSTICS.length}{' '}
+                  {CATALOG_DIAGNOSTICS.length === 1
+                    ? 'advertencia al cargar archivos de datos:'
+                    : 'advertencias al cargar archivos de datos:'}
+                </span>
+              </div>
+              <ul className="mt-1.5 list-disc space-y-0.5 pl-6 text-[11px] text-amber-100/90">
+                {CATALOG_DIAGNOSTICS.slice(0, 5).map((issue, i) => (
+                  <li key={`${issue.file}-${i}`}>
+                    <code className="font-mono-num text-amber-300">{issue.file}</code>: {issue.message}
+                  </li>
+                ))}
+              </ul>
             </div>
           )}
 
-          {tab === 'towers' && (
-            <div className="space-y-6">
-              <div>
-                <h3 className="font-display text-lg font-bold tracking-wide text-slate-200">
-                  Personal de Contención ({personalTowers.length})
-                </h3>
-                <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  {personalTowers.map((tower) => {
-                    const stats: string[] = [
-                      tower.roleLabel,
-                      `Salud ${tower.maxHp}`,
-                      tower.unlockLevel === 0 ? 'Inicial' : `Nivel ${tower.unlockLevel}`,
-                    ];
-                    if (tower.damage) {
-                      stats.push(`Daño ${tower.damage}${tower.damageType ? ` (${tower.damageType})` : ''}`);
-                    }
-                    if (tower.shieldOnDeploy) {
-                      stats.push(`Escudo ${tower.shieldOnDeploy}`);
-                    }
-                    if (tower.pierceCount) {
-                      stats.push(`Perfora ${tower.pierceCount}`);
-                    }
-                    if (tower.chainBounceCount) {
-                      stats.push(`Cadena x${tower.chainBounceCount}`);
-                    }
-
-                    return (
-                      <div
-                        key={tower.type}
-                        className="rounded-lg border border-slate-800 bg-[#1A212B] p-4"
-                      >
-                        <div className="flex items-baseline justify-between gap-2">
-                          <h4 className="font-semibold text-slate-100">{tower.name}</h4>
-                          <span className="font-mono-num text-xs font-semibold text-amber-400">
-                            {tower.cost} Energía
-                          </span>
-                        </div>
-                        <p className="mt-1 text-xs text-slate-400 tabular-nums">
-                          {stats.join(' · ')}
-                        </p>
-                        <p className="mt-2 text-xs leading-relaxed text-slate-300">
-                          {tower.description}
-                        </p>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-
-              <div>
-                <h3 className="font-display text-lg font-bold tracking-wide text-slate-200">
-                  Estructuras Defensivas ({estructuraTowers.length})
-                </h3>
-                <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  {estructuraTowers.map((tower) => {
-                    const stats: string[] = [
-                      tower.roleLabel,
-                      `Salud ${tower.maxHp}`,
-                      tower.unlockLevel === 0 ? 'Inicial' : `Nivel ${tower.unlockLevel}`,
-                    ];
-                    if (tower.damage) {
-                      stats.push(`Daño ${tower.damage}${tower.damageType ? ` (${tower.damageType})` : ''}`);
-                    }
-                    if (tower.shieldOnDeploy) {
-                      stats.push(`Escudo ${tower.shieldOnDeploy}`);
-                    }
-                    if (tower.thornsDps) {
-                      stats.push(`Espinas ${tower.thornsDps}/s`);
-                    }
-                    if (tower.energyAmount) {
-                      stats.push(`+${tower.energyAmount} Energía`);
-                    }
-
-                    return (
-                      <div
-                        key={tower.type}
-                        className="rounded-lg border border-slate-800 bg-[#1A212B] p-4"
-                      >
-                        <div className="flex items-baseline justify-between gap-2">
-                          <h4 className="font-semibold text-slate-100">{tower.name}</h4>
-                          <span className="font-mono-num text-xs font-semibold text-amber-400">
-                            {tower.cost} Energía
-                          </span>
-                        </div>
-                        <p className="mt-1 text-xs text-slate-400 tabular-nums">
-                          {stats.join(' · ')}
-                        </p>
-                        <p className="mt-2 text-xs leading-relaxed text-slate-300">
-                          {tower.description}
-                        </p>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            </div>
-          )}
+          {tab === 'almanac' && <AlmanacPanel />}
 
           {tab === 'effects' && (
             <div className="space-y-4">
               <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-800 bg-[#1A212B] px-4 py-2.5">
                 <p className="text-xs text-slate-300">
                   {effectEditorOpen
-                    ? 'Configura cualquier efecto declarativo nuevo y copia el JSON listo para src/data/json/effects/.'
-                    : 'Todos los efectos cargados desde src/data/json/effects/ y effects.json.'}
+                    ? 'Configura cualquier efecto declarativo nuevo y copia el JSON o TOML listo para src/data/json|toml/effects/.'
+                    : 'Efectos cargados desde src/data/json/effects/ y src/data/toml/effects/.'}
                 </p>
                 <button
                   type="button"
@@ -340,7 +200,7 @@ export function DossierModal({ onClose }: DossierModalProps) {
                   }`}
                 >
                   <SlidersHorizontal className="h-3.5 w-3.5" />
-                  {effectEditorOpen ? 'Ver Catálogo de Efectos' : 'Editor / Constructor JSON'}
+                  {effectEditorOpen ? 'Ver Catálogo de Efectos' : 'Editor JSON / TOML'}
                 </button>
               </div>
 

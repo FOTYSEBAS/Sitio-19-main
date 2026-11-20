@@ -1,27 +1,56 @@
 import type { ObjectiveDefinition } from '../types/game';
+import { CATALOGUE_MANIFEST } from './catalogueManifest';
+import type { CatalogLoadIssue } from './formatParser';
+import { deepMergePlain, isPlainObject, parseRawGlobMap } from './globHelper';
 
-const rootModules = import.meta.glob('./json/{objectives,objetives}.json', { eager: true });
-const folderModules = import.meta.glob('./json/{objectives,objetives}/*.json', { eager: true });
-
-function filenameSlug(path: string): string {
-  const base = path.split('/').pop() ?? '';
-  return base.replace(/\.json$/i, '');
+function getRawModules(): Record<string, unknown> {
+  try {
+    return import.meta.glob(
+      [
+        './json/{objectives,objetives}.{json,jsonc,toml}',
+        './json/{objectives,objetives}/*.{json,jsonc,toml}',
+        './toml/{objectives,objetives}.{json,jsonc,toml}',
+        './toml/{objectives,objetives}/*.{json,jsonc,toml}',
+      ],
+      { query: '?raw', import: 'default', eager: true }
+    );
+  } catch {
+    return {};
+  }
 }
 
-function unwrap(mod: unknown): unknown {
-  return typeof mod === 'object' && mod !== null && 'default' in mod
-    ? (mod as { default?: unknown }).default
-    : mod;
+function mergeObjective(
+  out: Record<string, ObjectiveDefinition>,
+  id: string,
+  def: Partial<ObjectiveDefinition>
+) {
+  const prev = out[id];
+  const merged = prev
+    ? (deepMergePlain(
+        prev as unknown as Record<string, unknown>,
+        def as unknown as Record<string, unknown>
+      ) as unknown as Partial<ObjectiveDefinition>)
+    : def;
+  if (!merged.kind) return;
+  out[id] = {
+    ...merged,
+    id,
+    kind: merged.kind,
+    description: merged.description ?? merged.title ?? id,
+  };
 }
 
-function ingest(raw: unknown, out: Record<string, ObjectiveDefinition>, fallbackId?: string) {
+export function ingestObjectivesCatalog(
+  raw: unknown,
+  out: Record<string, ObjectiveDefinition>,
+  fallbackId?: string
+) {
   if (!raw || typeof raw !== 'object') return;
 
   if (Array.isArray(raw)) {
     for (const item of raw) {
-      if (item && typeof item === 'object' && 'id' in item && typeof item.id === 'string') {
-        const def = item as ObjectiveDefinition;
-        if (def.kind) out[def.id] = def;
+      if (isPlainObject(item) && typeof item.id === 'string') {
+        mergeObjective(out, item.id, item as Partial<ObjectiveDefinition>);
       }
     }
     return;
@@ -29,39 +58,31 @@ function ingest(raw: unknown, out: Record<string, ObjectiveDefinition>, fallback
 
   const obj = raw as Record<string, unknown>;
   if (fallbackId && 'kind' in obj && typeof obj.kind === 'string') {
-    const def = obj as unknown as ObjectiveDefinition;
-    const id = def.id || fallbackId;
-    out[id] = {
-      ...def,
-      id,
-      description: def.description ?? def.title ?? id,
-    };
+    const def = obj as Partial<ObjectiveDefinition>;
+    mergeObjective(out, def.id || fallbackId, def);
     return;
   }
 
   for (const [key, val] of Object.entries(obj)) {
     if (key.startsWith('_')) continue;
-    if (val && typeof val === 'object') {
+    if (isPlainObject(val)) {
       const def = val as Partial<ObjectiveDefinition>;
-      if (!def.kind) continue;
-      const id = def.id ?? key;
-      out[id] = {
-        ...def,
-        id,
-        kind: def.kind,
-        description: def.description ?? def.title ?? id,
-      };
+      mergeObjective(out, def.id ?? key, def);
     }
   }
 }
 
+export const OBJECTIVE_LOAD_ISSUES: CatalogLoadIssue[] = [];
+
 function parseObjectivesCatalog(): Record<string, ObjectiveDefinition> {
   const out: Record<string, ObjectiveDefinition> = {};
-  for (const mod of Object.values(rootModules)) {
-    ingest(unwrap(mod), out);
+  const entries = parseRawGlobMap(getRawModules(), OBJECTIVE_LOAD_ISSUES);
+  for (const entry of entries) {
+    const isFolder = entry.path.includes('/objectives/') || entry.path.includes('/objetives/');
+    ingestObjectivesCatalog(entry.data, out, isFolder ? entry.slug : undefined);
   }
-  for (const [path, mod] of Object.entries(folderModules)) {
-    ingest(unwrap(mod), out, filenameSlug(path));
+  if (CATALOGUE_MANIFEST.objectives) {
+    ingestObjectivesCatalog(CATALOGUE_MANIFEST.objectives, out);
   }
   return out;
 }

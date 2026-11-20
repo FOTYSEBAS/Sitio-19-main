@@ -1,0 +1,69 @@
+# Configuración de Almanaque en TOML (Sitio-19)
+# Puedes personalizar descripciones, lore, estadísticas, animaciones y diseño visual desde aquí
+# o desde archivos individuales en src/data/toml/almanac/<id>.toml o src/data/json/almanac/<id>.json.
+
+[enemies.scp_008]
+subtitle = "Vector Prionico Clase Euclid · Contagio Biológico"
+clearanceLevel = "Nivel 2 / Bioseguridad"
+threatRating = "Moderado - Propagación en masa"
+lore = "El agente SCP-008 es un prión complejo almacenado en el Sitio-19. Los sujetos expuestos pierden funciones cognitivas superiores y avanzan sin dolor hacia personal no infectado."
+containmentProcedures = "Contener mediante fuego sostenido de Guardias y barrido térmico de Unidades Piro o Bobinas Tesla antes de que alcancen la línea de compuertas."
+quote = "No sienten miedo ni retroceden; la única contención es el bloqueo físico o el fuego."
+author = "Dr. Gears — Registro de Brecha Sector II"
+tags = ["Biológico", "Horda", "Euclid", "Cuerpo a cuerpo"]
+visualMode = "design"
+designId = "enemies:scp_008"
+
+[enemies.scp_008.statOverrides.hp]
+label = "Resistencia Base"
+color = "#84CC16"
+
+[enemies.scp_008.animation]
+defaultState = "walk"
+speed = 1.05
+scale = 1.06
+pedestalColor = "#14261B"
+backdropColor = "#0A130F"
+glowColor = "rgba(132, 204, 22, 0.35)"
+cardTransition = "scan"
+
+[enemies.scp_008.animation.states.enraged]
+speed = 1.45
+bobAmount = 3.5
+glowColor = "rgba(239, 68, 68, 0.45)"
+
+[[enemies.scp_008.stats]]
+id = "contagion_vector"
+label = "Vector de Contagio"
+value = "Fluido / Mordida"
+color = "#84CC16"
+bar = false
+
+[towers.researcher]
+subtitle = "Personal Científico · Generador Táctico"
+clearanceLevel = "Nivel 1 / Logística"
+threatRating = "Soporte Crítico"
+lore = "Especialistas de campo que canalizan baterías portátiles del Sitio-19 para suministrar energía continua al despliegue de escuadrones."
+containmentProcedures = "Colocar en columnas traseras (Col 0-1) protegidos por Guardias o Barricadas."
+quote = "Sin energía en los condensadores, ni las torretas ni las Tesla pueden sostener el pasillo."
+author = "Manual Operativo Sitio-19"
+tags = ["Logística", "Energía", "Personal"]
+visualMode = "design"
+designId = "towers:researcher"
+
+[towers.researcher.animation]
+defaultState = "idle"
+speed = 1.0
+scale = 1.02
+pedestalColor = "#16202E"
+backdropColor = "#0B111A"
+glowColor = "rgba(56, 189, 248, 0.32)"
+particlePresetId = "energy_collect"
+cardTransition = "fade"
+
+[[towers.researcher.stats]]
+id = "priority_row"
+label = "Zona Recomendada"
+value = "Col. 0 – 1"
+color = "#38BDF8"
+bar = false

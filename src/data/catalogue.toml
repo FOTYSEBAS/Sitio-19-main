@@ -1,0 +1,368 @@
+# ==============================================================================
+# SITIO-19: CATÁLOGO MAESTRO (TOML / JSON)
+# ==============================================================================
+# Archivo central de personalización de Sitio-19.
+# Todo lo definido aquí se fusiona sobre src/data/json/ y src/data/toml/ con máxima prioridad.
+# También puedes usar src/data/catalogue.json, src/data/catalogue.jsonc o src/data/catalogue/*.toml
+#
+# Prioridad de carga:
+#   src/data/json/* -> src/data/toml/* -> src/data/catalogue/* -> src/data/json/catalogue.* -> src/data/toml/catalogue.* -> src/data/catalogue.{json,jsonc,toml}
+# ==============================================================================
+
+# ------------------------------------------------------------------------------
+# 1. INTERFAZ GLOBAL, PANTALLAS, HUD Y ALMANAQUE ([ui])
+# ------------------------------------------------------------------------------
+[ui.theme]
+accentColor = "#F59E0B"
+secondaryAccent = "#38BDF8"
+dangerColor = "#EF4444"
+successColor = "#10B981"
+surfaceBg = "#0E1217"
+panelBg = "#141A22"
+panelBorder = "#1E293B"
+
+[ui.titleScreen]
+eyebrow = "Fundación SCP · Protocolo de Contención"
+title = "SITIO-19"
+subtitle = "Archivo Táctico de Contención · Despliega personal de seguridad, investigadores y torretas para frenar brechas anómalas."
+playButtonLabel = "Iniciar Turno"
+almanacButtonLabel = "Archivo / Almanaque"
+sectorsSectionLabel = "Sectores de Contención"
+
+[ui.loadout]
+title = "Preparar Escuadrón de Despliegue"
+confirmButtonLabel = "Desplegar en Sector"
+backButtonLabel = "Volver al Mapa"
+
+[ui.hud]
+retreatButtonLabel = "Retirada"
+pauseButtonLabel = "Pausa"
+resumeButtonLabel = "Reanudar"
+almanacButtonLabel = "Archivo"
+victoryTitle = "CONTENCIÓN RESTAURADA"
+defeatTitle = "BRECHA DE CONTENCIÓN"
+energyLabel = "ENERGÍA"
+
+[ui.almanac]
+modalTitle = "ARCHIVO CLASIFICADO · ALMANAQUE"
+modalSubtitle = "Personaliza descripciones, lore, estadísticas, animaciones y diseño visual desde src/data/catalogue.toml"
+scpsTabLabel = "Anomalías SCP"
+towersTabLabel = "Personal y Estructuras"
+loreSectionTitle = "Archivo & Descripción"
+containmentSectionTitle = "Protocolo de Contención"
+tacticalNoteTitle = "Nota Táctica"
+statsSectionTitle = "Parámetros Técnicos"
+customFieldsSectionTitle = "Ficha Técnica Clasificada"
+
+# ------------------------------------------------------------------------------
+# 2. PRESETS REUTILIZABLES DE ANIMACIÓN ([designs.animations.<id>])
+# ------------------------------------------------------------------------------
+# Cualquier entrada en [almanac] puede heredar estos presets con `preset = "<id>"`
+# (tanto en `animation.preset` como en `animation.states.<estado>.preset`).
+
+[designs.animations.patrol_bob]
+defaultState = "walk"
+speed = 1.0
+bobSpeed = 4.2
+bobAmount = 2.6
+breatheAmp = 0.03
+breatheSpeed = 2.8
+swayAmp = 1.8
+swaySpeed = 2.1
+tiltAmpDeg = 3.2
+tiltSpeed = 2.4
+squashAmp = 0.035
+squashSpeed = 4.2
+scale = 1.48
+showPedestal = true
+showGrid = true
+pedestalColor = "#16221C"
+pedestalStrokeColor = "rgba(132, 204, 22, 0.35)"
+backdropColor = "#09110D"
+glowColor = "rgba(132, 204, 22, 0.28)"
+cardTransition = "scan"
+
+[designs.animations.feral_lunge]
+speed = 1.55
+bobSpeed = 6.5
+bobAmount = 4.2
+breatheAmp = 0.055
+breatheSpeed = 4.5
+swayAmp = 3.4
+swaySpeed = 5.2
+tiltAmpDeg = 6.5
+tiltSpeed = 5.5
+squashAmp = 0.075
+squashSpeed = 6.5
+pulseSpeed = 7.0
+glowColor = "rgba(239, 68, 68, 0.48)"
+
+[designs.animations.tactical_hover]
+defaultState = "idle"
+speed = 1.0
+bobSpeed = 2.4
+bobAmount = 1.6
+breatheAmp = 0.028
+breatheSpeed = 2.4
+swayAmp = 1.2
+swaySpeed = 1.5
+tiltAmpDeg = 1.8
+tiltSpeed = 1.6
+squashAmp = 0.02
+squashSpeed = 2.4
+floatAmp = 1.5
+scale = 1.46
+showPedestal = true
+showGrid = true
+pedestalColor = "#15202E"
+pedestalStrokeColor = "rgba(56, 189, 248, 0.35)"
+backdropColor = "#0A1019"
+glowColor = "rgba(56, 189, 248, 0.32)"
+orbitCount = 2
+orbitRadius = 38
+orbitSpeed = 1.4
+orbitColor = "rgba(56, 189, 248, 0.65)"
+cardTransition = "fade"
+
+[designs.animations.heavy_recoil]
+speed = 1.2
+recoilIntervalSec = 1.15
+recoilStrength = 9.5
+squashAmp = 0.05
+squashSpeed = 4.8
+tiltAmpDeg = 2.8
+tiltSpeed = 4.2
+glowColor = "rgba(245, 158, 11, 0.42)"
+
+[designs.animations.containment_pulse]
+speed = 1.05
+floatAmp = 2.6
+breatheAmp = 0.035
+breatheSpeed = 3.0
+pulseSpeed = 5.5
+orbitCount = 3
+orbitRadius = 42
+orbitSpeed = 2.1
+orbitColor = "rgba(251, 191, 36, 0.75)"
+glowColor = "rgba(245, 158, 11, 0.38)"
+cardTransition = "pulse"
+
+# ------------------------------------------------------------------------------
+# 3. ALMANAQUE PERSONALIZADO ([almanac.enemies.<id>] y [almanac.towers.<id>])
+# ------------------------------------------------------------------------------
+# Aquí cambias descripción, lore, protocolo, campos clasificados, estadísticas,
+# icono/orden de barras, diseño visual (designId de src/data/json/designs/) y animaciones.
+
+[almanac.enemies.scp_008]
+code = "SCP-008"
+title = "Plaga Zombi"
+subtitle = "Vector Priónico Clase Euclid · Contagio Biológico"
+classification = "Euclid"
+badgeText = "BIO-RIESGO"
+accentColor = "#84CC16"
+clearanceLevel = "Nivel 2 / Bioseguridad"
+threatRating = "Moderado — Propagación en horda"
+lore = "El agente SCP-008 es un prión complejo almacenado bajo cuarentena estricta en el Sitio-19. Los sujetos infectados experimentan fallo orgánico aparente seguido de reanimación agresiva sin respuesta al dolor."
+containmentProcedures = "Mantener línea de fuego continua con Guardias y unidades ligeras. Neutralizar en pasillos exteriores antes de que alcancen las compuertas de evacuación."
+tacticalNote = "Amenaza base de velocidad media. Vulnerable a fuego sostenido y ralentización táctica."
+quote = "No sienten dolor, fatiga ni duda; cada brecha debe sellarse antes del contacto cuerpo a cuerpo."
+author = "Dr. Gears — Informe de Contención Sector I"
+tags = ["Biológico", "Euclid", "Horda", "Contagio"]
+visualMode = "both"
+designId = "enemies:scp_008"
+portraitFit = "contain"
+portraitBg = "#0A130F"
+cardBg = "#0E1612"
+cardBorderColor = "rgba(132, 204, 22, 0.35)"
+
+[[almanac.enemies.scp_008.customFields]]
+label = "Agente Patógeno"
+value = "Prión Complejo Tipo-008"
+color = "#84CC16"
+
+[[almanac.enemies.scp_008.customFields]]
+label = "Incubación"
+value = "< 3 horas tras exposición"
+
+[[almanac.enemies.scp_008.customFields]]
+label = "Debilidad Táctica"
+value = "Fuego sostenido / Bloqueo frontal"
+color = "#F59E0B"
+
+[almanac.enemies.scp_008.statOverrides.hp]
+label = "Integridad Biológica"
+color = "#84CC16"
+icon = "shield"
+order = 1
+
+[almanac.enemies.scp_008.statOverrides.speed]
+label = "Velocidad de Marcha"
+color = "#38BDF8"
+icon = "wind"
+order = 2
+
+[almanac.enemies.scp_008.statOverrides.dps]
+label = "Mordida / Daño"
+color = "#EF4444"
+icon = "flame"
+order = 3
+
+[almanac.enemies.scp_008.statOverrides.score]
+order = 4
+icon = "award"
+
+[[almanac.enemies.scp_008.stats]]
+id = "contagion_vector"
+label = "Vector de Contagio"
+value = "Fluido / Contacto"
+color = "#84CC16"
+icon = "biohazard"
+bar = false
+order = 5
+
+[almanac.enemies.scp_008.animation]
+preset = "patrol_bob"
+speed = 1.05
+scale = 1.48
+particlePresetId = "death_scp"
+
+[almanac.enemies.scp_008.animation.states.enraged]
+preset = "feral_lunge"
+
+[almanac.enemies.scp_008.animation.states.attack]
+speed = 1.35
+tiltAmpDeg = 5.5
+squashAmp = 0.06
+recoilIntervalSec = 1.1
+recoilStrength = 7
+
+# --- Torres / Personal ---
+
+[almanac.towers.researcher]
+title = "Investigador de Campo"
+subtitle = "Logística Científica · Generador de Energía"
+classification = "Personal"
+badgeText = "SOPORTE EN+"
+accentColor = "#38BDF8"
+clearanceLevel = "Nivel 1 / Logística"
+threatRating = "Prioridad de Retaguardia"
+lore = "Especialistas equipados con baterías de condensación portátil del Sitio-19. Canalizan energía ambiental para financiar despliegues rápidos."
+containmentProcedures = "Desplegar en columnas traseras (Col. 0–1) tras líneas de Guardias."
+tacticalNote = "Cada investigador aporta pulsos periódicos de energía táctica; protégelos de brechas rápidas."
+quote = "Sin flujo en los condensadores, todo el perímetro defensivo queda a oscuras."
+author = "Manual Operativo del Sitio-19"
+tags = ["Logística", "Energía", "Personal", "Retaguardia"]
+visualMode = "design"
+designId = "towers:researcher"
+cardBg = "#0E1621"
+cardBorderColor = "rgba(56, 189, 248, 0.32)"
+
+[[almanac.towers.researcher.customFields]]
+label = "Zona Recomendada"
+value = "Columnas 0 – 1"
+color = "#38BDF8"
+
+[[almanac.towers.researcher.customFields]]
+label = "Rol Principal"
+value = "Suministro continuo de Energía"
+
+[almanac.towers.researcher.statOverrides.cost]
+icon = "zap"
+order = 1
+
+[almanac.towers.researcher.statOverrides.energy]
+label = "Generación Táctica"
+color = "#FBBF24"
+icon = "battery"
+order = 2
+
+[almanac.towers.researcher.statOverrides.hp]
+icon = "heart"
+order = 3
+
+[almanac.towers.researcher.animation]
+preset = "containment_pulse"
+defaultState = "idle"
+scale = 1.46
+pedestalColor = "#16202E"
+backdropColor = "#0A1019"
+particlePresetId = "energy_collect"
+
+[almanac.towers.lightGuard]
+title = "Guardia Ligero"
+subtitle = "Respuesta Rápida · Contención Ligera"
+classification = "Personal"
+badgeText = "RESPUESTA RÁPIDA"
+accentColor = "#60A5FA"
+clearanceLevel = "Nivel 1 / Seguridad"
+lore = "Efectivos de primera respuesta armados con pistola reglamentaria de servicio. Económicos y de rápida recarga para cubrir múltiples carriles al inicio."
+containmentProcedures = "Desplegar temprano frente a los Investigadores mientras llegan los Guardias Armados."
+quote = "No es el mejor blindaje del sitio, pero siempre está en posición a tiempo."
+author = "Destacamento de Guardia Sector I"
+tags = ["Personal", "Económico", "Pistola", "Apertura"]
+visualMode = "design"
+designId = "towers:lightGuard"
+
+[[almanac.towers.lightGuard.customFields]]
+label = "Armamento"
+value = "Pistola táctica 9mm"
+color = "#60A5FA"
+
+[almanac.towers.lightGuard.animation]
+preset = "tactical_hover"
+orbitCount = 0
+swayAmp = 1.8
+tiltAmpDeg = 2.4
+
+[almanac.towers.lightGuard.animation.states.attack]
+preset = "heavy_recoil"
+recoilStrength = 6.5
+
+[almanac.towers.guard]
+title = "Guardia Armado"
+subtitle = "Infantería de Seguridad · Rifle Táctico"
+classification = "Personal"
+badgeText = "LÍNEA PRINCIPAL"
+accentColor = "#F59E0B"
+clearanceLevel = "Nivel 2 / Seguridad"
+lore = "Fuerza estándar de contención del Sitio-19 equipada con chaleco antibalas y rifle semiautomático de alto calibre."
+containmentProcedures = "Formar líneas de contención en columnas medias (Col. 2–4) para interceptar hordas."
+quote = "Mantengan el pasillo limpio y el dedo en el gatillo."
+author = "Sargento Vance — Sitio-19"
+tags = ["Personal", "Rifle", "Línea Media"]
+visualMode = "design"
+designId = "towers:guard"
+
+[[almanac.towers.guard.customFields]]
+label = "Armamento"
+value = "Rifle táctico de contención"
+color = "#F59E0B"
+
+[almanac.towers.guard.animation]
+preset = "tactical_hover"
+pedestalColor = "#1C1A15"
+pedestalStrokeColor = "rgba(245, 158, 11, 0.35)"
+glowColor = "rgba(245, 158, 11, 0.3)"
+orbitColor = "rgba(245, 158, 11, 0.55)"
+orbitCount = 1
+
+[almanac.towers.guard.animation.states.attack]
+preset = "heavy_recoil"
+
+# ------------------------------------------------------------------------------
+# 4. PLANTILLAS LISTAS PARA PERSONALIZAR NIVELES, JUGABILIDAD Y TABLERO
+# ------------------------------------------------------------------------------
+# Descomenta o añade tus propias secciones para personalizar cualquier nivel,
+# torre o SCP directamente desde este archivo sin tocar código TypeScript:
+#
+# [levels.1.gameplayOverride]
+# energyDropAmount = 50
+# removeRefundRatio = 0.25
+#
+# [towers.guard]
+# cost = 100
+# damage = 25
+#
+# [scps.scp_008]
+# hp = 140
+# speed = 0.4

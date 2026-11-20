@@ -13,6 +13,8 @@ import {
 } from 'lucide-react';
 import { useState } from 'react';
 import {
+  CATALOG_DIAGNOSTICS,
+  CATALOGUE_SOURCE_FILES,
   CHARACTERS_CATALOG,
   DIALOGUES_CATALOG,
   EFFECTS_CATALOG,
@@ -394,62 +396,77 @@ export function AdminModal({
                 </div>
               </div>
 
-              {/* JSON Catalog Summary */}
-              <div className="grid grid-cols-3 gap-3 sm:grid-cols-5 lg:grid-cols-9">
-                <div className="rounded-lg border border-slate-800 bg-[#1A212B] p-3 text-center">
-                  <div className="font-mono-num text-lg font-bold text-white">
-                    {LEVEL_CATALOG.length}
+              {/* JSON / TOML Catalog Summary */}
+              <div className="space-y-2">
+                {CATALOG_DIAGNOSTICS.length > 0 && (
+                  <div className="rounded-lg border border-amber-500/60 bg-amber-950/35 px-3 py-2 text-xs text-amber-200">
+                    <strong>{CATALOG_DIAGNOSTICS.length} advertencia(s)</strong> de sintaxis en archivos JSON/TOML. Revisa la pestaña Almanaque/Archivo para ver el detalle.
                   </div>
-                  <div className="text-[11px] text-slate-400">Niveles JSON</div>
-                </div>
-                <div className="rounded-lg border border-slate-800 bg-[#1A212B] p-3 text-center">
-                  <div className="font-mono-num text-lg font-bold text-white">
-                    {TOWER_CATALOG.length}
+                )}
+                <div className="grid grid-cols-3 gap-3 sm:grid-cols-5 lg:grid-cols-9">
+                  <div className="rounded-lg border border-slate-800 bg-[#1A212B] p-3 text-center">
+                    <div className="font-mono-num text-lg font-bold text-white">
+                      {LEVEL_CATALOG.length}
+                    </div>
+                    <div className="text-[11px] text-slate-400">Niveles</div>
                   </div>
-                  <div className="text-[11px] text-slate-400">Torres JSON</div>
-                </div>
-                <div className="rounded-lg border border-slate-800 bg-[#1A212B] p-3 text-center">
-                  <div className="font-mono-num text-lg font-bold text-white">
-                    {ENEMY_CATALOG.length}
+                  <div className="rounded-lg border border-slate-800 bg-[#1A212B] p-3 text-center">
+                    <div className="font-mono-num text-lg font-bold text-white">
+                      {TOWER_CATALOG.length}
+                    </div>
+                    <div className="text-[11px] text-slate-400">Torres</div>
                   </div>
-                  <div className="text-[11px] text-slate-400">SCP JSON</div>
-                </div>
-                <div className="rounded-lg border border-slate-800 bg-[#1A212B] p-3 text-center">
-                  <div className="font-mono-num text-lg font-bold text-white">
-                    {Object.keys(EFFECTS_CATALOG).length}
+                  <div className="rounded-lg border border-slate-800 bg-[#1A212B] p-3 text-center">
+                    <div className="font-mono-num text-lg font-bold text-white">
+                      {ENEMY_CATALOG.length}
+                    </div>
+                    <div className="text-[11px] text-slate-400">SCP</div>
                   </div>
-                  <div className="text-[11px] text-slate-400">Efectos JSON</div>
-                </div>
-                <div className="rounded-lg border border-slate-800 bg-[#1A212B] p-3 text-center">
-                  <div className="font-mono-num text-lg font-bold text-white">
-                    {Object.keys(OBJECTIVES_CATALOG).length}
+                  <div className="rounded-lg border border-slate-800 bg-[#1A212B] p-3 text-center">
+                    <div className="font-mono-num text-lg font-bold text-white">
+                      {Object.keys(EFFECTS_CATALOG).length}
+                    </div>
+                    <div className="text-[11px] text-slate-400">Efectos</div>
                   </div>
-                  <div className="text-[11px] text-slate-400">Objetivos</div>
-                </div>
-                <div className="rounded-lg border border-slate-800 bg-[#1A212B] p-3 text-center">
-                  <div className="font-mono-num text-lg font-bold text-white">
-                    {Object.keys(PARTICLES_CATALOG).length}
+                  <div className="rounded-lg border border-slate-800 bg-[#1A212B] p-3 text-center">
+                    <div className="font-mono-num text-lg font-bold text-white">
+                      {Object.keys(OBJECTIVES_CATALOG).length}
+                    </div>
+                    <div className="text-[11px] text-slate-400">Objetivos</div>
                   </div>
-                  <div className="text-[11px] text-slate-400">Partículas</div>
-                </div>
-                <div className="rounded-lg border border-slate-800 bg-[#1A212B] p-3 text-center">
-                  <div className="font-mono-num text-lg font-bold text-white">
-                    {Object.keys(EVENTS_CATALOG).length}
+                  <div className="rounded-lg border border-slate-800 bg-[#1A212B] p-3 text-center">
+                    <div className="font-mono-num text-lg font-bold text-white">
+                      {Object.keys(PARTICLES_CATALOG).length}
+                    </div>
+                    <div className="text-[11px] text-slate-400">Partículas</div>
                   </div>
-                  <div className="text-[11px] text-slate-400">Eventos JSON</div>
-                </div>
-                <div className="rounded-lg border border-slate-800 bg-[#1A212B] p-3 text-center">
-                  <div className="font-mono-num text-lg font-bold text-white">
-                    {Object.keys(CHARACTERS_CATALOG).length}
+                  <div className="rounded-lg border border-slate-800 bg-[#1A212B] p-3 text-center">
+                    <div className="font-mono-num text-lg font-bold text-white">
+                      {Object.keys(EVENTS_CATALOG).length}
+                    </div>
+                    <div className="text-[11px] text-slate-400">Eventos</div>
                   </div>
-                  <div className="text-[11px] text-slate-400">Personajes</div>
-                </div>
-                <div className="rounded-lg border border-slate-800 bg-[#1A212B] p-3 text-center">
-                  <div className="font-mono-num text-lg font-bold text-white">
-                    {Object.keys(DIALOGUES_CATALOG).length}
+                  <div className="rounded-lg border border-slate-800 bg-[#1A212B] p-3 text-center">
+                    <div className="font-mono-num text-lg font-bold text-white">
+                      {Object.keys(CHARACTERS_CATALOG).length}
+                    </div>
+                    <div className="text-[11px] text-slate-400">Personajes</div>
                   </div>
-                  <div className="text-[11px] text-slate-400">Diálogos JSON</div>
+                  <div className="rounded-lg border border-slate-800 bg-[#1A212B] p-3 text-center">
+                    <div className="font-mono-num text-lg font-bold text-white">
+                      {Object.keys(DIALOGUES_CATALOG).length}
+                    </div>
+                    <div className="text-[11px] text-slate-400">Diálogos</div>
+                  </div>
                 </div>
+                {CATALOGUE_SOURCE_FILES.length > 0 && (
+                  <div className="rounded-lg border border-slate-800 bg-[#141A22] px-3 py-2 text-[11px] text-slate-300">
+                    <span className="font-semibold text-amber-300">Catálogo maestro activo:</span>{' '}
+                    <code className="font-mono-num text-slate-200">
+                      {CATALOGUE_SOURCE_FILES.join(', ')}
+                    </code>
+                  </div>
+                )}
               </div>
             </div>
           )}

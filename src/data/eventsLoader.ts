@@ -1,26 +1,50 @@
 import type { LevelEventDefinition } from '../types/game';
+import { CATALOGUE_MANIFEST } from './catalogueManifest';
+import type { CatalogLoadIssue } from './formatParser';
+import { deepMergePlain, isPlainObject, parseRawGlobMap } from './globHelper';
 
-const legacyModules = import.meta.glob('./json/events.json', { eager: true });
-const folderModules = import.meta.glob('./json/events/*.json', { eager: true });
-
-function filenameSlug(path: string): string {
-  const base = path.split('/').pop() ?? '';
-  return base.replace(/\.json$/i, '');
+function getRawModules(): Record<string, unknown> {
+  try {
+    return import.meta.glob(
+      [
+        './json/events.{json,jsonc,toml}',
+        './json/events/*.{json,jsonc,toml}',
+        './toml/events.{json,jsonc,toml}',
+        './toml/events/*.{json,jsonc,toml}',
+      ],
+      { query: '?raw', import: 'default', eager: true }
+    );
+  } catch {
+    return {};
+  }
 }
 
-function unwrap(mod: unknown): unknown {
-  return typeof mod === 'object' && mod !== null && 'default' in mod
-    ? (mod as { default?: unknown }).default
-    : mod;
+function mergeEvent(
+  out: Record<string, LevelEventDefinition>,
+  id: string,
+  def: Partial<LevelEventDefinition>
+) {
+  const prev = out[id];
+  const merged = prev
+    ? (deepMergePlain(
+        prev as unknown as Record<string, unknown>,
+        def as unknown as Record<string, unknown>
+      ) as unknown as Partial<LevelEventDefinition>)
+    : def;
+  out[id] = { ...merged, id };
 }
 
-function ingest(raw: unknown, out: Record<string, LevelEventDefinition>, fallbackId?: string) {
+export function ingestEventsCatalog(
+  raw: unknown,
+  out: Record<string, LevelEventDefinition>,
+  fallbackId?: string
+) {
   if (!raw || typeof raw !== 'object') return;
 
   if (Array.isArray(raw)) {
     for (const item of raw) {
-      if (item && typeof item === 'object' && 'id' in item && typeof item.id === 'string') {
-        out[item.id] = item as LevelEventDefinition;
+      if (isPlainObject(item) && typeof item.id === 'string') {
+        mergeEvent(out, item.id, item as Partial<LevelEventDefinition>);
       }
     }
     return;
@@ -29,28 +53,30 @@ function ingest(raw: unknown, out: Record<string, LevelEventDefinition>, fallbac
   const obj = raw as Record<string, unknown>;
   if (fallbackId && ('trigger' in obj || 'logic' in obj || 'visual' in obj || 'name' in obj)) {
     const def = obj as Partial<LevelEventDefinition>;
-    const id = def.id ?? fallbackId;
-    out[id] = { ...def, id };
+    mergeEvent(out, def.id ?? fallbackId, def);
     return;
   }
 
   for (const [key, val] of Object.entries(obj)) {
     if (key.startsWith('_')) continue;
-    if (val && typeof val === 'object') {
+    if (isPlainObject(val)) {
       const def = val as Partial<LevelEventDefinition>;
-      const id = def.id ?? key;
-      out[id] = { ...def, id };
+      mergeEvent(out, def.id ?? key, def);
     }
   }
 }
 
+export const EVENT_LOAD_ISSUES: CatalogLoadIssue[] = [];
+
 function parseEventsCatalog(): Record<string, LevelEventDefinition> {
   const out: Record<string, LevelEventDefinition> = {};
-  for (const mod of Object.values(legacyModules)) {
-    ingest(unwrap(mod), out);
+  const entries = parseRawGlobMap(getRawModules(), EVENT_LOAD_ISSUES);
+  for (const entry of entries) {
+    const isFolder = entry.path.includes('/events/');
+    ingestEventsCatalog(entry.data, out, isFolder ? entry.slug : undefined);
   }
-  for (const [path, mod] of Object.entries(folderModules)) {
-    ingest(unwrap(mod), out, filenameSlug(path));
+  if (CATALOGUE_MANIFEST.events) {
+    ingestEventsCatalog(CATALOGUE_MANIFEST.events, out);
   }
   return out;
 }

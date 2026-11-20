@@ -1,5 +1,6 @@
 import { Check, Code2, Copy, Plus, Sliders, Sparkles, Wand2 } from 'lucide-react';
 import { useMemo, useState } from 'react';
+import { parseDataTextAuto, stringifyToToml } from '../data/formatParser';
 import { EFFECTS_CATALOG, ENEMY_CATALOG } from '../data/scpCatalog';
 import {
   EffectAreaShape,
@@ -325,6 +326,7 @@ export function EffectJsonEditor() {
   const [draft, setDraft] = useState<EditorDraft>(() => createBlankDraft());
   const [copied, setCopied] = useState(false);
   const [mode, setMode] = useState<'visual' | 'rawjson'>('visual');
+  const [outputFormat, setOutputFormat] = useState<'json' | 'toml'>('json');
   const [rawJsonText, setRawJsonText] = useState('');
   const [jsonError, setJsonError] = useState<string | null>(null);
 
@@ -474,12 +476,21 @@ export function EffectJsonEditor() {
       ...(Object.keys(visual).length > 0 ? { visual } : {}),
     };
 
-    const formatted = `"${cleanId}": ${JSON.stringify(payload, null, 2)}`;
-    return { cleanId, jsonText: formatted, rawPayload: payload };
+    const formattedJson = `"${cleanId}": ${JSON.stringify(payload, null, 2)}`;
+    const formattedToml = stringifyToToml(payload);
+    return {
+      cleanId,
+      jsonText: formattedJson,
+      tomlText: formattedToml,
+      rawPayload: payload,
+    };
   }, [draft]);
 
+  const activeSnippetText =
+    outputFormat === 'toml' ? generatedObject.tomlText : generatedObject.jsonText;
+
   const handleCopy = () => {
-    const textToCopy = mode === 'rawjson' ? rawJsonText : generatedObject.jsonText;
+    const textToCopy = mode === 'rawjson' ? rawJsonText : activeSnippetText;
     navigator.clipboard?.writeText(textToCopy).catch(() => {});
     setCopied(true);
     setTimeout(() => setCopied(false), 1800);
@@ -528,7 +539,12 @@ export function EffectJsonEditor() {
             <button
               type="button"
               onClick={() => {
-                setRawJsonText(JSON.stringify(generatedObject.rawPayload, null, 2));
+                setRawJsonText(
+                  outputFormat === 'toml'
+                    ? generatedObject.tomlText
+                    : JSON.stringify(generatedObject.rawPayload, null, 2)
+                );
+                setJsonError(null);
                 setMode('rawjson');
               }}
               className={`rounded-md px-3 py-1 text-xs font-bold transition-all ${
@@ -538,12 +554,46 @@ export function EffectJsonEditor() {
               }`}
             >
               <Code2 className="inline h-3.5 w-3.5 mr-1" />
-              Editor JSON Libre
+              Editor JSON / TOML
             </button>
           </div>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          <div className="flex rounded-lg border border-slate-700 bg-[#0E1217] p-0.5">
+            <button
+              type="button"
+              onClick={() => {
+                setOutputFormat('json');
+                if (mode === 'rawjson') {
+                  setRawJsonText(JSON.stringify(generatedObject.rawPayload, null, 2));
+                }
+              }}
+              className={`rounded px-2.5 py-1 text-[11px] font-bold ${
+                outputFormat === 'json'
+                  ? 'bg-amber-500 text-slate-950'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              JSON
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setOutputFormat('toml');
+                if (mode === 'rawjson') {
+                  setRawJsonText(generatedObject.tomlText);
+                }
+              }}
+              className={`rounded px-2.5 py-1 text-[11px] font-bold ${
+                outputFormat === 'toml'
+                  ? 'bg-amber-500 text-slate-950'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              TOML
+            </button>
+          </div>
           <select
             value=""
             onChange={(e) => {
@@ -553,7 +603,11 @@ export function EffectJsonEditor() {
                 next.id = `${found.id}_master`;
                 setDraft(next);
                 if (mode === 'rawjson') {
-                  setRawJsonText(JSON.stringify(generatedObject.rawPayload, null, 2));
+                  setRawJsonText(
+                    outputFormat === 'toml'
+                      ? stringifyToToml(found)
+                      : JSON.stringify(found, null, 2)
+                  );
                 }
               }
             }}
@@ -1513,9 +1567,17 @@ export function EffectJsonEditor() {
             <div className="flex flex-1 flex-col rounded-xl border border-slate-800 bg-[#0E1217] p-4 shadow">
               <div className="flex items-center justify-between gap-2 border-b border-slate-800 pb-3">
                 <div>
-                  <p className="text-xs font-bold text-white">JSON Resultante (Listo para effects.json)</p>
+                  <p className="text-xs font-bold text-white">
+                    {outputFormat === 'toml'
+                      ? 'TOML Resultante (Listo para effects/<id>.toml)'
+                      : 'JSON Resultante (Listo para effects.json / effects/<id>.json)'}
+                  </p>
                   <p className="text-[11px] text-slate-400">
-                    Copia este bloque e insértalo en <code className="text-amber-300">effects.json</code>.
+                    Copia este bloque en{' '}
+                    <code className="text-amber-300">
+                      {outputFormat === 'toml' ? 'src/data/toml/effects/' : 'src/data/json/effects/'}
+                    </code>
+                    .
                   </p>
                 </div>
                 <button
@@ -1524,34 +1586,55 @@ export function EffectJsonEditor() {
                   className="inline-flex items-center gap-1.5 rounded-lg bg-amber-500 px-3.5 py-2 text-xs font-bold text-slate-950 transition-colors hover:bg-amber-400 shadow"
                 >
                   {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-                  {copied ? '¡Copiado!' : 'Copiar JSON'}
+                  {copied ? '¡Copiado!' : `Copiar ${outputFormat.toUpperCase()}`}
                 </button>
               </div>
               <pre className="font-mono-num mt-3 max-h-[400px] flex-1 overflow-auto text-[11px] leading-relaxed text-emerald-300">
-                {generatedObject.jsonText}
+                {activeSnippetText}
               </pre>
             </div>
           </div>
         </div>
       ) : (
-        /* Raw JSON Editor Mode */
+        /* Raw JSON / TOML Editor Mode */
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
           <div className="flex flex-col rounded-xl border border-slate-800 bg-[#0E1217] p-4 shadow">
             <div className="flex items-center justify-between border-b border-slate-800 pb-2">
-              <span className="text-xs font-bold text-amber-400">Editor de Texto JSON</span>
+              <span className="text-xs font-bold text-amber-400">
+                Editor Libre ({outputFormat.toUpperCase()} / JSONC)
+              </span>
               <button
                 type="button"
                 onClick={() => {
-                  try {
-                    const parsed = JSON.parse(`{${rawJsonText}}`);
-                    const firstKey = Object.keys(parsed)[0];
-                    if (firstKey && parsed[firstKey]) {
-                      setDraft(fromDefinition(parsed[firstKey]));
-                      setJsonError(null);
-                      setMode('visual');
+                  const direct = parseDataTextAuto(rawJsonText, outputFormat);
+                  let targetDef: EffectDefinition | undefined;
+                  if (direct.data && typeof direct.data === 'object') {
+                    const obj = direct.data as Record<string, unknown>;
+                    if (typeof obj.id === 'string' || obj.modifiers || obj.trigger) {
+                      targetDef = obj as unknown as EffectDefinition;
+                    } else {
+                      const firstKey = Object.keys(obj)[0];
+                      if (firstKey && obj[firstKey] && typeof obj[firstKey] === 'object') {
+                        targetDef = obj[firstKey] as EffectDefinition;
+                      }
                     }
-                  } catch (err: any) {
-                    setJsonError(err?.message || 'Error de sintaxis JSON');
+                  } else {
+                    const wrapped = parseDataTextAuto(`{${rawJsonText}}`, 'json');
+                    if (wrapped.data && typeof wrapped.data === 'object') {
+                      const obj = wrapped.data as Record<string, unknown>;
+                      const firstKey = Object.keys(obj)[0];
+                      if (firstKey && obj[firstKey] && typeof obj[firstKey] === 'object') {
+                        targetDef = obj[firstKey] as EffectDefinition;
+                      }
+                    }
+                  }
+
+                  if (targetDef) {
+                    setDraft(fromDefinition(targetDef));
+                    setJsonError(null);
+                    setMode('visual');
+                  } else {
+                    setJsonError(direct.error || 'Error de sintaxis JSON / TOML');
                   }
                 }}
                 className="rounded-md bg-emerald-600 px-3 py-1 text-xs font-bold text-white hover:bg-emerald-500"
@@ -1572,13 +1655,16 @@ export function EffectJsonEditor() {
           </div>
 
           <div className="flex flex-col rounded-xl border border-slate-800 bg-[#1A212B] p-4 shadow">
-            <h4 className="text-xs font-bold text-amber-400 uppercase">Guía Rápida de Propiedades JSON</h4>
+            <h4 className="text-xs font-bold text-amber-400 uppercase">
+              Guía Rápida de Propiedades (JSON / TOML)
+            </h4>
             <ul className="mt-3 space-y-2 text-xs text-slate-300 list-disc list-inside">
               <li><code className="text-cyan-300">engineMode: &quot;declarative&quot;</code> — Obligatorio para efectos dinámicos.</li>
               <li><code className="text-cyan-300">trigger</code> — continuous_aura, periodic, on_hit, on_attack, on_spawn, on_hp_below, on_kill, on_death, passive.</li>
               <li><code className="text-cyan-300">targetSide</code> — opponents, allies, self, towers, enemies.</li>
               <li><code className="text-cyan-300">modifiers</code> — damageInstant, dotDps, healAmount, slowFactor, speedMultiplier, stunSec, instakill, etc.</li>
               <li><code className="text-cyan-300">visual</code> — showZone, waveKind, floatingText, sound, zoneRgb.</li>
+              <li><code className="text-amber-300">Formato dual</code> — Puedes usar comentarios <code className="text-slate-200">//</code> y comas finales en JSON, o archivos <code className="text-slate-200">.toml</code> directos.</li>
             </ul>
             <div className="mt-auto pt-4 border-t border-slate-800 flex justify-end">
               <button
@@ -1587,7 +1673,7 @@ export function EffectJsonEditor() {
                 className="inline-flex items-center gap-1.5 rounded-lg bg-amber-500 px-4 py-2 text-xs font-bold text-slate-950 hover:bg-amber-400 shadow"
               >
                 {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-                {copied ? '¡Copiado!' : 'Copiar JSON'}
+                {copied ? '¡Copiado!' : `Copiar ${outputFormat.toUpperCase()}`}
               </button>
             </div>
           </div>

@@ -27,3 +27,35 @@
 .tabular-nums {
   font-variant-numeric: tabular-nums;
 }
+
+@keyframes almanacFade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes almanacSlide {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes almanacPulse {
+  0% {
+    opacity: 0.7;
+    transform: scale(0.985);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+

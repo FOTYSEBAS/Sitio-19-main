@@ -1,29 +1,51 @@
 import type { DialogueDefinition } from '../types/game';
+import { CATALOGUE_MANIFEST } from './catalogueManifest';
+import type { CatalogLoadIssue } from './formatParser';
+import { deepMergePlain, isPlainObject, parseRawGlobMap } from './globHelper';
 
-const legacyModules = import.meta.glob('./json/dialogues.json', { eager: true });
-const folderModules = import.meta.glob('./json/dialogues/*.json', { eager: true });
-
-function filenameSlug(path: string): string {
-  const base = path.split('/').pop() ?? '';
-  return base.replace(/\.json$/i, '');
+function getRawModules(): Record<string, unknown> {
+  try {
+    return import.meta.glob(
+      [
+        './json/dialogues.{json,jsonc,toml}',
+        './json/dialogues/*.{json,jsonc,toml}',
+        './toml/dialogues.{json,jsonc,toml}',
+        './toml/dialogues/*.{json,jsonc,toml}',
+      ],
+      { query: '?raw', import: 'default', eager: true }
+    );
+  } catch {
+    return {};
+  }
 }
 
-function unwrap(mod: unknown): unknown {
-  return typeof mod === 'object' && mod !== null && 'default' in mod
-    ? (mod as { default?: unknown }).default
-    : mod;
+function mergeDialogue(
+  out: Record<string, DialogueDefinition>,
+  id: string,
+  dlg: Partial<DialogueDefinition>
+) {
+  const prev = out[id];
+  const merged = prev
+    ? (deepMergePlain(
+        prev as unknown as Record<string, unknown>,
+        dlg as unknown as Record<string, unknown>
+      ) as unknown as Partial<DialogueDefinition>)
+    : dlg;
+  if (!Array.isArray(merged.lines)) return;
+  out[id] = { ...(merged as DialogueDefinition), id };
 }
 
-function ingest(raw: unknown, out: Record<string, DialogueDefinition>, fallbackId?: string) {
+export function ingestDialoguesCatalog(
+  raw: unknown,
+  out: Record<string, DialogueDefinition>,
+  fallbackId?: string
+) {
   if (!raw || typeof raw !== 'object') return;
 
   if (Array.isArray(raw)) {
     for (const item of raw) {
-      if (item && typeof item === 'object' && 'id' in item) {
-        const dlg = item as DialogueDefinition;
-        if (dlg.id && Array.isArray(dlg.lines)) {
-          out[dlg.id] = dlg;
-        }
+      if (isPlainObject(item) && typeof item.id === 'string') {
+        mergeDialogue(out, item.id, item as Partial<DialogueDefinition>);
       }
     }
     return;
@@ -31,30 +53,31 @@ function ingest(raw: unknown, out: Record<string, DialogueDefinition>, fallbackI
 
   const obj = raw as Record<string, unknown>;
   if (fallbackId && Array.isArray(obj.lines)) {
-    const dlg = obj as unknown as DialogueDefinition;
-    const id = dlg.id || fallbackId;
-    out[id] = { ...dlg, id };
+    const dlg = obj as Partial<DialogueDefinition>;
+    mergeDialogue(out, dlg.id || fallbackId, dlg);
     return;
   }
 
   for (const [key, val] of Object.entries(obj)) {
     if (key.startsWith('_')) continue;
-    if (val && typeof val === 'object') {
-      const dlg = val as DialogueDefinition;
-      if (!Array.isArray(dlg.lines)) continue;
-      const id = dlg.id || key;
-      out[id] = { ...dlg, id };
+    if (isPlainObject(val)) {
+      const dlg = val as Partial<DialogueDefinition>;
+      mergeDialogue(out, dlg.id || key, dlg);
     }
   }
 }
 
+export const DIALOGUE_LOAD_ISSUES: CatalogLoadIssue[] = [];
+
 function parseDialoguesCatalog(): Record<string, DialogueDefinition> {
   const out: Record<string, DialogueDefinition> = {};
-  for (const mod of Object.values(legacyModules)) {
-    ingest(unwrap(mod), out);
+  const entries = parseRawGlobMap(getRawModules(), DIALOGUE_LOAD_ISSUES);
+  for (const entry of entries) {
+    const isFolder = entry.path.includes('/dialogues/');
+    ingestDialoguesCatalog(entry.data, out, isFolder ? entry.slug : undefined);
   }
-  for (const [path, mod] of Object.entries(folderModules)) {
-    ingest(unwrap(mod), out, filenameSlug(path));
+  if (CATALOGUE_MANIFEST.dialogues) {
+    ingestDialoguesCatalog(CATALOGUE_MANIFEST.dialogues, out);
   }
   return out;
 }

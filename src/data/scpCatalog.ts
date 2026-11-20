@@ -1,6 +1,9 @@
 import { compileLevelMetadata } from '../engine/levelParser';
 import { EnemyType, LevelConfig } from '../types/game';
 import {
+  ALMANAC_CATALOG,
+  CATALOG_DIAGNOSTICS,
+  CATALOGUE_SOURCE_FILES,
   CHARACTERS_CATALOG,
   DESIGN_CATALOG,
   DIALOGUES_CATALOG,
@@ -18,6 +21,9 @@ import {
 } from './catalogLoaders';
 
 export {
+  ALMANAC_CATALOG,
+  CATALOG_DIAGNOSTICS,
+  CATALOGUE_SOURCE_FILES,
   CHARACTERS_CATALOG,
   DESIGN_CATALOG,
   DIALOGUES_CATALOG,

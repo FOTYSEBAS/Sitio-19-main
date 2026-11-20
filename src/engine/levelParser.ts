@@ -15,8 +15,10 @@ import {
   ObjectiveDefinition,
   RawLevelConfig,
   RawLevelEvent,
+  RawLevelWave,
   ResolvedSpawnTarget,
   TowerDefinition,
+  TowerType,
 } from '../types/game';
 
 const ENEMIES: EnemyDefinition[] = ENEMY_CATALOG;
@@ -28,6 +30,66 @@ function clampRow(r: number, gridRows: number): number {
 
 function getEnemyDef(type: EnemyType): EnemyDefinition | undefined {
   return ENEMIES.find((e) => e.type === type);
+}
+
+export function expandWavesToRawEvents(waves?: RawLevelWave[]): RawLevelEvent[] {
+  if (!waves || waves.length === 0) return [];
+  const out: RawLevelEvent[] = [];
+
+  for (const wave of waves) {
+    const waveDelay = wave.delaySec ?? wave.time ?? 0;
+    const hasAbsolute = wave.absoluteTime !== undefined;
+    const spawns = wave.spawns ?? [];
+
+    if (spawns.length === 0) {
+      out.push({
+        time: waveDelay,
+        absoluteTime: wave.absoluteTime,
+        isFlagHorde: wave.isFlagHorde,
+        hordeLabel: wave.hordeLabel,
+        announcement: wave.announcement,
+        dialogueId: wave.dialogueId,
+        inlineDialogue: wave.inlineDialogue,
+        eventId: wave.eventId,
+        eventOverrides: wave.eventOverrides,
+        event: wave.event,
+        repeat: wave.repeat,
+      });
+      continue;
+    }
+
+    spawns.forEach((sp, idx) => {
+      const isFirst = idx === 0;
+      out.push({
+        time: isFirst ? waveDelay : 0,
+        absoluteTime: hasAbsolute ? wave.absoluteTime : undefined,
+        type: sp.type as EnemyType,
+        count: sp.count,
+        row: sp.row,
+        rows: sp.rows,
+        col: sp.col,
+        staggerSec: sp.staggerSec,
+        hpMultiplier: sp.hpMultiplier,
+        speedMultiplier: sp.speedMultiplier,
+        dpsMultiplier: sp.dpsMultiplier,
+        extraEffects: sp.extraEffects,
+        immunities: sp.immunities,
+        eliteBadge: sp.eliteBadge,
+        eliteColor: sp.eliteColor,
+        repeat: isFirst ? wave.repeat : undefined,
+        isFlagHorde: isFirst ? wave.isFlagHorde : undefined,
+        hordeLabel: isFirst ? wave.hordeLabel : undefined,
+        announcement: isFirst ? wave.announcement : undefined,
+        dialogueId: isFirst ? wave.dialogueId : undefined,
+        inlineDialogue: isFirst ? wave.inlineDialogue : undefined,
+        eventId: isFirst ? wave.eventId : undefined,
+        eventOverrides: isFirst ? wave.eventOverrides : undefined,
+        event: isFirst ? wave.event : undefined,
+      });
+    });
+  }
+
+  return out;
 }
 
 export function resolveSpawnTargetsForSpec(
@@ -130,7 +192,9 @@ function collectSpawnsFromEventDef(
   }
 }
 
-function expandEventTimestamps(events: RawLevelEvent[]): Array<{ absTime: number; raw: RawLevelEvent }> {
+export function expandEventTimestamps(
+  events: RawLevelEvent[]
+): Array<{ absTime: number; raw: RawLevelEvent }> {
   let absCursor = 0;
   const expanded: Array<{ absTime: number; raw: RawLevelEvent }> = [];
 
@@ -160,15 +224,6 @@ function expandEventTimestamps(events: RawLevelEvent[]): Array<{ absTime: number
   return expanded;
 }
 
-/**
- * Compiles raw customizable level JSON into normalized LevelConfig metadata:
- * - Accumulates relative `time` delays (or `absoluteTime` + `repeat`) into absolute timestamps
- * - Auto-calculates `durationSeconds` if omitted
- * - Auto-calculates `flagMarkers` from `isFlagHorde` events if omitted
- * - Auto-derives `enemiesPresent` from wave events, startingEnemies, obstacles, and events.json spawns
- * - Merges `obstacles` and `tombstones` shorthand
- * - Preserves dialogues (`introDialogueId`, `victoryDialogueId`, `defeatDialogueId`, `inlineDialogues`)
- */
 function resolveLevelObjectives(
   specs: LevelObjectiveSpec[] | undefined
 ): ObjectiveDefinition[] | undefined {
@@ -211,7 +266,12 @@ export function compileLevelMetadata(raw: RawLevelConfig): LevelConfig {
     ...(raw.tombstones ?? []).map((t) => ({ kind: 'tombstone' as const, ...t })),
   ];
 
-  const expanded = expandEventTimestamps(raw.events ?? []);
+  const mergedRawEvents: RawLevelEvent[] = [
+    ...expandWavesToRawEvents(raw.waves),
+    ...(raw.events ?? []),
+  ];
+
+  const expanded = expandEventTimestamps(mergedRawEvents);
   let maxTime = 0;
 
   if (!raw.enemiesPresent) {
@@ -279,6 +339,14 @@ export function compileLevelMetadata(raw: RawLevelConfig): LevelConfig {
     level: levelNum,
     title: raw.title,
     description: raw.description,
+    subtitle: raw.subtitle,
+    difficulty: raw.difficulty,
+    themeColor: raw.themeColor ?? raw.accentColor,
+    badgeText: raw.badgeText,
+    recommendedTowers: raw.recommendedTowers as TowerType[] | undefined,
+    laneLabels: raw.laneLabels,
+    prepTimeSec: raw.prepTimeSec !== undefined ? Math.max(0, raw.prepTimeSec) : undefined,
+    hudOverride: raw.hudOverride,
     coverImage,
     startingEnergy: raw.startingEnergy,
     maxDeckSlots: raw.maxDeckSlots,
@@ -287,6 +355,9 @@ export function compileLevelMetadata(raw: RawLevelConfig): LevelConfig {
     boardOverride: raw.boardOverride,
     environment: raw.environment,
     rules: raw.rules,
+    gameplayOverride: raw.gameplayOverride,
+    towerOverrides: raw.towerOverrides,
+    enemyOverrides: raw.enemyOverrides,
     disableTeslaGates: raw.disableTeslaGates,
     autoCollectEnergy: raw.autoCollectEnergy,
     skyEnergy: raw.skyEnergy,
@@ -305,21 +376,17 @@ export function compileLevelMetadata(raw: RawLevelConfig): LevelConfig {
     defeatDialogueId: raw.defeatDialogueId,
     inlineDialogues: raw.inlineDialogues,
     victoryCondition: raw.victoryCondition,
+    customDefeatTitle: raw.customDefeatTitle,
+    customDefeatSubtitle: raw.customDefeatSubtitle,
     enemiesPresent: Array.from(enemySet),
     durationSeconds,
     flagMarkers,
     rewardLabel,
     unlockTower,
-    rawEvents: raw.events ?? [],
+    rawEvents: mergedRawEvents,
   };
 }
 
-/**
- * Resolves a LevelConfig at match start:
- * - Accumulates relative `time` delays (or `absoluteTime` + `repeat`) into absolute spawn times
- * - Resolves omitted `row`/`rows` randomly on each playthrough within level's gridRows
- * - Supports 2-lane tuples `[x1, x2]` (e.g. SCP-682) and optional `type` for event-only entries
- */
 export function resolveMatchTimeline(
   levelConfig: LevelConfig,
   gridRows = levelConfig.gridRows ?? GAME_CONFIG.grid.rows

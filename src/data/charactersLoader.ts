@@ -1,61 +1,86 @@
 import type { CharacterDefinition } from '../types/game';
+import { CATALOGUE_MANIFEST } from './catalogueManifest';
+import type { CatalogLoadIssue } from './formatParser';
+import { deepMergePlain, isPlainObject, parseRawGlobMap } from './globHelper';
 
-const legacyModules = import.meta.glob('./json/characters.json', { eager: true });
-const folderModules = import.meta.glob('./json/characters/*.json', { eager: true });
-
-function filenameSlug(path: string): string {
-  const base = path.split('/').pop() ?? '';
-  return base.replace(/\.json$/i, '');
+function getRawModules(): Record<string, unknown> {
+  try {
+    return import.meta.glob(
+      [
+        './json/characters.{json,jsonc,toml}',
+        './json/characters/*.{json,jsonc,toml}',
+        './toml/characters.{json,jsonc,toml}',
+        './toml/characters/*.{json,jsonc,toml}',
+      ],
+      { query: '?raw', import: 'default', eager: true }
+    );
+  } catch {
+    return {};
+  }
 }
 
-function unwrap(mod: unknown): unknown {
-  return typeof mod === 'object' && mod !== null && 'default' in mod
-    ? (mod as { default?: unknown }).default
-    : mod;
+function mergeCharacter(
+  out: Record<string, CharacterDefinition>,
+  id: string,
+  charDef: Partial<CharacterDefinition>
+) {
+  const prev = out[id];
+  const merged = prev
+    ? (deepMergePlain(
+        prev as unknown as Record<string, unknown>,
+        charDef as unknown as Record<string, unknown>
+      ) as unknown as Partial<CharacterDefinition>)
+    : charDef;
+  out[id] = { ...(merged as CharacterDefinition), id };
 }
 
-function ingest(raw: unknown, out: Record<string, CharacterDefinition>, fallbackId?: string) {
+export function ingestCharactersCatalog(
+  raw: unknown,
+  out: Record<string, CharacterDefinition>,
+  fallbackId?: string
+) {
   if (!raw || typeof raw !== 'object') return;
 
   if (Array.isArray(raw)) {
     for (const item of raw) {
-      if (item && typeof item === 'object' && 'id' in item) {
-        const charDef = item as CharacterDefinition;
-        if (charDef.id) out[charDef.id] = charDef;
+      if (isPlainObject(item) && typeof item.id === 'string' && item.id) {
+        mergeCharacter(out, item.id, item as Partial<CharacterDefinition>);
       }
     }
     return;
   }
 
   const obj = raw as Record<string, unknown>;
-  // Single character object in characters/<id>.json (must have name or expressions/defaultPortrait)
   if (
     fallbackId &&
     ('name' in obj || 'expressions' in obj || 'defaultPortrait' in obj || 'title' in obj)
   ) {
-    const charDef = obj as unknown as CharacterDefinition;
-    const id = charDef.id || fallbackId;
-    out[id] = { ...charDef, id };
+    const charDef = obj as Partial<CharacterDefinition>;
+    mergeCharacter(out, charDef.id || fallbackId, charDef);
     return;
   }
 
   for (const [key, val] of Object.entries(obj)) {
     if (key.startsWith('_')) continue;
-    if (val && typeof val === 'object') {
-      const charDef = val as CharacterDefinition;
-      const id = charDef.id || key;
-      out[id] = { ...charDef, id };
+    if (isPlainObject(val)) {
+      const charDef = val as Partial<CharacterDefinition>;
+      mergeCharacter(out, charDef.id || key, charDef);
     }
   }
 }
 
+export const CHARACTER_LOAD_ISSUES: CatalogLoadIssue[] = [];
+
 function parseCharactersCatalog(): Record<string, CharacterDefinition> {
   const out: Record<string, CharacterDefinition> = {};
-  for (const mod of Object.values(legacyModules)) {
-    ingest(unwrap(mod), out);
+  const entries = parseRawGlobMap(getRawModules(), CHARACTER_LOAD_ISSUES);
+  for (const entry of entries) {
+    const isFolder =
+      entry.path.includes('/characters/') && !entry.path.endsWith('/characters.json');
+    ingestCharactersCatalog(entry.data, out, isFolder ? entry.slug : undefined);
   }
-  for (const [path, mod] of Object.entries(folderModules)) {
-    ingest(unwrap(mod), out, filenameSlug(path));
+  if (CATALOGUE_MANIFEST.characters) {
+    ingestCharactersCatalog(CATALOGUE_MANIFEST.characters, out);
   }
   return out;
 }

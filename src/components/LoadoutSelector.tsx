@@ -24,6 +24,7 @@ export function LoadoutSelector({
   onConfirmDeck,
 }: LoadoutSelectorProps) {
   const bannedSet = new Set(levelConfig.rules?.bannedTowers ?? []);
+  const recommendedSet = new Set(levelConfig.recommendedTowers ?? []);
 
   // Default pre-selected loadout up to maxSlots, ensuring researcher + guard + key counters if unlocked & allowed
   const buildDefaultDeck = (): TowerType[] => {
@@ -62,25 +63,34 @@ export function LoadoutSelector({
 
   const personalList = TOWER_CATALOG.filter((t) => t.category === 'personal');
   const estructuraList = TOWER_CATALOG.filter((t) => t.category === 'estructura');
+  const uiTheme = GAME_CONFIG.ui?.theme;
+  const loadoutUi = GAME_CONFIG.ui?.loadout;
 
   return (
-    <div className="flex h-screen w-screen flex-col overflow-hidden bg-[#0E1217] text-slate-100">
+    <div
+      className="flex h-screen w-screen flex-col overflow-hidden bg-[#0E1217] text-slate-100"
+      style={uiTheme?.surfaceBg ? { backgroundColor: uiTheme.surfaceBg } : undefined}
+    >
       {/* Top Bar */}
-      <header className="flex shrink-0 items-center justify-between border-b border-slate-800 bg-[#131820] px-6 py-3">
+      <header
+        className="flex shrink-0 items-center justify-between border-b border-slate-800 bg-[#131820] px-6 py-3"
+        style={uiTheme?.panelBorder ? { borderColor: uiTheme.panelBorder } : undefined}
+      >
         <div className="flex items-center gap-4">
           <button
             onClick={onBack}
             className="inline-flex items-center gap-1.5 rounded-lg border border-slate-700 bg-slate-800/80 px-3 py-1.5 text-xs font-semibold text-slate-200 transition-colors hover:bg-slate-700"
           >
             <ArrowLeft className="h-3.5 w-3.5" />
-            Niveles
+            {loadoutUi?.backButtonLabel ?? 'Niveles'}
           </button>
           <div>
             <h1 className="font-display text-2xl font-bold tracking-wide text-white">
               Nivel {levelConfig.level}: {levelConfig.title}
             </h1>
             <p className="text-xs text-slate-400">
-              Inspecciona los SCP entrantes y elige hasta {maxSlots} torres para tu mazo
+              {loadoutUi?.title ??
+                `Inspecciona los SCP entrantes y elige hasta ${maxSlots} torres para tu mazo`}
             </p>
           </div>
         </div>
@@ -100,7 +110,7 @@ export function LoadoutSelector({
             className="inline-flex items-center gap-2 rounded-lg bg-amber-500 px-5 py-2 text-sm font-bold text-slate-950 transition-colors hover:bg-amber-400 disabled:opacity-40"
           >
             <Play className="h-4 w-4 fill-current" />
-            Iniciar Nivel ({selectedDeck.length}/{maxSlots})
+            {loadoutUi?.confirmButtonLabel ?? 'Iniciar Nivel'} ({selectedDeck.length}/{maxSlots})
           </button>
         </div>
       </header>
@@ -210,9 +220,10 @@ export function LoadoutSelector({
                 {personalList.map((tower) => {
                   const unlocked = unlockedTowers.includes(tower.type);
                   const banned = bannedSet.has(tower.type);
+                  const recommended = recommendedSet.has(tower.type);
                   const chosen = selectedDeck.includes(tower.type);
                   const full = selectedDeck.length >= maxSlots && !chosen;
-                  const effectiveCost = getEffectiveTowerCost(tower.type, levelConfig.rules);
+                  const effectiveCost = getEffectiveTowerCost(tower.type, levelConfig.rules, undefined, levelConfig);
 
                   return (
                     <button
@@ -226,6 +237,8 @@ export function LoadoutSelector({
                           ? 'border-amber-400 bg-amber-500/15 ring-1 ring-amber-400/70'
                           : full
                           ? 'border-slate-800 bg-[#171E27] opacity-55'
+                          : recommended
+                          ? 'border-emerald-500/70 bg-[#162425] hover:border-emerald-400'
                           : 'border-slate-700 bg-[#1A222D] hover:border-slate-500'
                       }`}
                     >
@@ -239,9 +252,11 @@ export function LoadoutSelector({
                         <div className="mt-0.5 text-[11px] text-slate-400">
                           {banned
                             ? 'Vetada en este nivel'
-                            : unlocked
-                            ? tower.roleLabel
-                            : `Desbloqueo: Nivel ${tower.unlockLevel}`}
+                            : !unlocked
+                            ? `Desbloqueo: Nivel ${tower.unlockLevel}`
+                            : recommended
+                            ? `${tower.roleLabel} · Recomendada`
+                            : tower.roleLabel}
                         </div>
                       </div>
                       <p className="mt-2 text-[11px] leading-snug text-slate-300">
@@ -263,9 +278,10 @@ export function LoadoutSelector({
                 {estructuraList.map((tower) => {
                   const unlocked = unlockedTowers.includes(tower.type);
                   const banned = bannedSet.has(tower.type);
+                  const recommended = recommendedSet.has(tower.type);
                   const chosen = selectedDeck.includes(tower.type);
                   const full = selectedDeck.length >= maxSlots && !chosen;
-                  const effectiveCost = getEffectiveTowerCost(tower.type, levelConfig.rules);
+                  const effectiveCost = getEffectiveTowerCost(tower.type, levelConfig.rules, undefined, levelConfig);
 
                   return (
                     <button
@@ -279,6 +295,8 @@ export function LoadoutSelector({
                           ? 'border-amber-400 bg-amber-500/15 ring-1 ring-amber-400/70'
                           : full
                           ? 'border-slate-800 bg-[#171E27] opacity-55'
+                          : recommended
+                          ? 'border-emerald-500/70 bg-[#162425] hover:border-emerald-400'
                           : 'border-slate-700 bg-[#1A222D] hover:border-slate-500'
                       }`}
                     >
@@ -292,9 +310,11 @@ export function LoadoutSelector({
                         <div className="mt-0.5 text-[11px] text-slate-400">
                           {banned
                             ? 'Vetada en este nivel'
-                            : unlocked
-                            ? tower.roleLabel
-                            : `Desbloqueo: Nivel ${tower.unlockLevel}`}
+                            : !unlocked
+                            ? `Desbloqueo: Nivel ${tower.unlockLevel}`
+                            : recommended
+                            ? `${tower.roleLabel} · Recomendada`
+                            : tower.roleLabel}
                         </div>
                       </div>
                       <p className="mt-2 text-[11px] leading-snug text-slate-300">

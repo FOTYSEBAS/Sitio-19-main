@@ -1,15 +1,15 @@
-# Documentación Maestra Completa de los Archivos JSON (Sitio-19)
+# Documentación Maestra Completa de Archivos JSON y TOML (Sitio-19)
 
-Esta guía documenta **de principio a fin** cada archivo JSON ubicado en `src/data/json/`, cada campo soportado por el motor TypeScript, valores por defecto, interacciones entre sistemas y recetas completas listas para copiar y adaptar.
+Esta guía documenta **de principio a fin** el sistema de datos en `src/data/catalogue.toml`, `src/data/json/` y `src/data/toml/`, compatible con **JSON estándar**, **JSONC / JSON relajado** (comentarios `//`, `/* */` y comas finales) y **TOML** (`.toml`), además de todas las opciones de personalización global de interfaz (`[ui]`), niveles (`gameplayOverride`), tablero y el **Almanaque interactivo de Torres y SCP**.
 
 ---
 
 ## Índice General
 
-1. [Resumen de Carpetas y Archivos JSON](#1-resumen-de-carpetas-y-archivos-json)
-2. [Panel de Administrador y Herramientas del Archivo Táctico](#2-panel-de-administrador-y-herramientas-del-archivo-táctico)
-3. [`config.json` — Configuración Global y Orden (`levelOrder`, `scpOrder`, `towerOrder`)](#3-configjson--configuración-global-del-juego)
-4. [`levels/<n>.json` — Niveles por Archivo, Portadas (`coverImage`), Casillas, Lápidas y Oleadas](#4-levelsjson--niveles-tablero-casillas-lápidasobstáculos-y-oleadas)
+1. [Resumen de Carpetas, `catalogue.toml`, Formatos (`JSON` / `JSONC` / `TOML`) y Prioridad de Carga](#1-resumen-de-carpetas-y-archivos-json)
+2. [Panel de Administrador, Almanaque Táctico e Inspector TOML/JSON](#2-panel-de-administrador-y-herramientas-del-archivo-táctico)
+3. [`config` y `[ui]` — Configuración Global, Orden y Personalización Total de Interfaz](#3-configjson--configuración-global-del-juego)
+4. [`levels/<n>.json` o `.toml` — Niveles Personalizados, Oleadas `waves`, `gameplayOverride`, Overrides y HUD](#4-levelsjson--niveles-tablero-casillas-lápidasobstáculos-y-oleadas)
 5. [`objectives.json` / `objetives.json` y `objectives/` — Objetivos, Restricciones de Perímetro y Reglas de Victoria](#5-objectivesjson--objetivos-y-condiciones-de-fallo)
 6. [`events.json` / `events/` — Motor de Eventos (`logic` + `visual`) y Mutación Específica de SCPs](#5-eventsjson--motor-de-eventos-logic--visual-y-mutación-específica-de-scps)
 7. [`characters.json` / `characters/` — Personajes, Retratos PNG y Múltiples Expresiones](#6-charactersjson--personajes-retratos-png-y-múltiples-expresiones)
@@ -17,38 +17,60 @@ Esta guía documenta **de principio a fin** cada archivo JSON ubicado en `src/da
 9. [`effects.json` / `effects/` — Motor Declarativo de Efectos y Prioridades](#8-effectsjson--motor-declarativo-de-efectos-y-prioridades)
 10. [`towers.json` / `towers/` — Personal de Contención y Estructuras Defensivas](#9-towersjson--personal-de-contención-y-estructuras-defensivas)
 11. [`scps.json` / `scps/` — Entidades SCP, Estadísticas y Bloques `behavior`](#10-scpsjson--entidades-scp-estadísticas-y-bloques-behavior)
-12. [`designs.json` / `designs/` — Personalización Visual Completa, Sprites, Formas Vectoriales y UI](#11-designsjson--apariencia-visual-sprites-formas-vectoriales-y-ui)
+12. [`designs.json` / `designs/` — Personalización Visual Completa, Presets de Animación y UI](#11-designsjson--apariencia-visual-sprites-formas-vectoriales-y-ui)
 13. [Guía Práctica: Crear una Misión Completa Desde Cero (Lápidas + Objetivos + Diálogos + Eventos + Efectos)](#12-guía-práctica-crear-una-misión-completa-desde-cero)
 14. [`particles.json` / `particles/` — Sistema Reutilizable de Partículas y Diseño Completo](#13-particlesjson--sistema-reutilizable-de-partículas-y-diseño-completo)
-15. [Programación Completa 100% en JSON: Nuevas Torres (`towers/`) y Nuevos SCP (`scps/`)](#14-programación-completa-100-en-json-nuevas-torres-towersjson-y-nuevos-scp-scpsjson)
+15. [Programación Completa 100% en JSON/TOML: Nuevas Torres (`towers/`) y Nuevos SCP (`scps/`)](#14-programación-completa-100-en-json-nuevas-torres-towersjson-y-nuevos-scp-scpsjson)
+16. [Almanaque de Torres y SCP (`catalogue.toml -> [almanac]`, `almanac.json` / `almanac.toml`)](#15-almanaque-de-torres-y-scp-almanacjson--almanactoml)
 
 ---
 
 ## 1. Resumen de Carpetas y Archivos JSON
 
-El juego carga automáticamente **tanto carpetas modulares (un archivo `.json` por elemento)** como los archivos raíz tradicionales en `src/data/json/`. Puedes organizar cada cosa en su carpeta limpia:
+El juego carga automáticamente **archivos `.json`, `.jsonc` y `.toml`** desde el manifiesto maestro **`src/data/catalogue.toml`** (y variantes), así como desde `src/data/json/`, `src/data/toml/` y `src/data/catalogue/`:
 
-| Carpeta / Archivo | Convención recomendada | Estado inicial | Qué controla |
-| :--- | :--- | :--- | :--- |
-| `config.json` | Objeto `{ ... }` | Configurado | Parámetros globales, **`levelOrder`**, `scpOrder`, `towerOrder`, rejilla base, velocidades de proyectiles, energía del cielo, puertas Tesla y secreto Admin. |
-| `levels/<n>.json` (+ `levels.json`) | `1.json`, `2.json`, `3.json`... | Configurado (`1..3`) | Cada nivel en su archivo numerado. Soporta **`coverImage` (portada)**, `objectives`, `victoryCondition`, `tileOverrides`, `tileModifiers`, `obstacles`/`tombstones`, diálogos y oleadas. |
-| `objectives/` + `objectives.json` (`objetives.json`) | `<id>.json` o diccionario | 8 presets listos | Objetivos primarios, secundarios, bonus y condiciones de derrota inmediata (p. ej. **no dejar pasar ningún SCP más allá de la columna 3**). |
-| `scps/<nombre>.json` (+ `scps.json`) | `scp_008.json`, `scp_173.json`... | 17 entidades SCP | Ficha y comportamiento 100% programable de cada SCP (`hp`, `speed`, `dps`, `effects`, `behavior`, `particles`, `inlineDesign`). |
-| `towers/<nombre>.json` (+ `towers.json`) | `guard.json`, `mtf.json`... | 20 torres | Personal y estructuras defensivas (`cost`, `cooldown`, `maxHp`, combate, `particles`, `inlineDesign`). |
-| `effects/<nombre>.json` (+ `effects.json`) | `<id>.json` o diccionario | Catálogo completo | Efectos `builtin` y `declarative` reutilizables en torres, SCPs, casillas y eventos. |
-| `particles/<nombre>.json` (+ `particles.json`) | `<id>.json` o diccionario | 28+ presets | Sistemas de partículas multicapa para despliegues, ataques, explosiones, impactos, auras y obstáculos. |
-| `designs/<seccion>.json` (+ `designs.json`) | `board.json`, `ui.json`, etc. o monolítico | Personalización completa | Colores, sprites, bordes, radios, barras de vida/escudo, líneas de perímetro, proyectiles (`diamond`, `rocket`, `laser_bolt`, `orb`, `ring`, `sprite`), `tileModifiers`, `obstacles` y `hudTheme`. |
-| `events/` + `events.json` | Vacío `{}` | Listo para empezar desde 0 | Eventos reutilizables con bloques `logic` y `visual`. |
-| `characters/` + `characters.json` | Vacío `{}` | Listo para empezar desde 0 | Personajes narrativos con retratos PNG y soporte para múltiples expresiones. |
-| `dialogues/` + `dialogues.json` | Vacío `{}` | Listo para empezar desde 0 | Conversaciones tipo novela visual con retratos dinámicos y ramificaciones. |
+### Archivo Maestro `src/data/catalogue.toml` (o `catalogue.json` / `catalogue.jsonc`)
+Si prefieres centralizar o sobrescribir todo en un único punto sin duplicar archivos, **`src/data/catalogue.toml`** reúne las secciones globales del juego bajo tablas raíz:
+- `[config]` — fusiona sobre `config.json`.
+- `[ui]` (`[ui.theme]`, `[ui.titleScreen]`, `[ui.loadout]`, `[ui.hud]`, `[ui.almanac]`) — personaliza paleta global, títulos, subtítulos, etiquetas, textos de botones, encabezados del HUD y colores de tarjetas sin tocar código React.
+- `[designs]` y `[designs.animations.<preset>]` — diseños visuales y **presets de animación reutilizables**.
+- `[almanac]` (`[almanac.animations.<preset>]`, `[almanac.enemies.<id>]`, `[almanac.towers.<id>]`) — fichas completas del Almanaque, campos clasificados (`customFields`), íconos/orden de barras y animaciones.
+- `[levels.<n>]` — sobrescribe cualquier nivel existente (p. ej. `[levels.1]`, `[levels.2]`, `[levels.1.gameplayOverride]`) o define niveles nuevos.
+- `[towers.<id>]`, `[scps.<id>]` (o `[enemies.<id>]`), `[effects.<id>]`, `[particles.<id>]`, `[objectives.<id>]`, `[events.<id>]`, `[characters.<id>]`, `[dialogues.<id>]`.
+
+### Soporte de JSON Relajado (JSONC) y TOML
+- **JSON Relajado / JSONC**: todos los cargadores eliminan automáticamente BOM UTF-8, comentarios de línea (`// ...`), comentarios de bloque (`/* ... */`) y comas finales sobrantes antes de objetos `}` o arreglos `]` sin afectar texto dentro de comillas.
+- **TOML nativo**: cualquier archivo terminado en `.toml` (`src/data/catalogue.toml`, `src/data/toml/...` o `src/data/json/...`) se interpreta con `smol-toml`. Ideal para configuraciones limpias, textos multilínea y overrides modulares.
+- **Orden de prioridad y fusión**: se cargan en orden determinista de menor a mayor prioridad:
+  1. `src/data/json/<seccion>/...` y `src/data/json/<seccion>.{json,jsonc,toml}`
+  2. `src/data/toml/<seccion>/...` y `src/data/toml/<seccion>.{json,jsonc,toml}`
+  3. `src/data/catalogue/*.{json,jsonc,toml}`
+  4. `src/data/json/catalogue.{json,jsonc,toml}` -> `src/data/toml/catalogue.{json,jsonc,toml}`
+  5. **`src/data/catalogue.{json,jsonc,toml}`** (máxima prioridad; `catalogue.toml` gana al final).
+- **Diagnósticos sin caídas**: si un archivo tiene un error de sintaxis, el cargador lo omite sin romper el arranque y registra el detalle en `CATALOG_DIAGNOSTICS` (visible en el **Almanaque / Archivo** y en el **Panel Admin**, junto con la lista de archivos de manifiesto detectados).
+
+| Carpeta / Archivo | Convención recomendada | Qué controla |
+| :--- | :--- | :--- |
+| **`catalogue.toml`** (o `.json` / `.jsonc`) | Tablas `[ui]`, `[almanac]`, `[designs]`, `[levels.1]`... | **Manifiesto maestro** con máxima prioridad para personalizar UI, diseños, animaciones, almanaque y overrides por nivel en un solo lugar. |
+| `config.{json,jsonc,toml}` | Objeto `{ ... }` | Parámetros globales, **`levelOrder`**, `scpOrder`, `towerOrder`, rejilla base, velocidades de proyectiles, energía del cielo, puertas Tesla, `[ui]` y secreto Admin. |
+| `levels/<n>.{json,toml}` (+ `[levels.<n>]`) | `1.json`, `4.toml`... | Cada nivel en su archivo numerado. Soporta `coverImage`, `difficulty`, `themeColor`, `prepTimeSec`, `laneLabels`, `recommendedTowers`, `waves`, `gameplayOverride`, `hudOverride`, `towerOverrides`, `enemyOverrides`, `objectives`, `victoryCondition`, `tileOverrides`, `tileModifiers`, `obstacles`/`tombstones`, diálogos y `events`. |
+| `almanac.{json,toml}` + `[almanac]` | `<id>.{json,toml}` o `{ towers, enemies }` | Personalización del **Almanaque** (diseño elegido de `designs`, descripción, lore, cita, `customFields`, `statOverrides` con `icon`/`order`, animación, escenario y presets). |
+| `objectives/` + `objectives.{json,toml}` (`objetives.*`) | `<id>.{json,toml}` o diccionario | Objetivos primarios, secundarios, bonus y condiciones de derrota inmediata (p. ej. **no dejar pasar ningún SCP más allá de la columna 3**). |
+| `scps/<nombre>.{json,toml}` (+ `[scps.*]`) | `scp_008.json`, `scp_173.toml`... | Ficha y comportamiento 100% programable de cada SCP (`hp`, `speed`, `dps`, `effects`, `behavior`, `particles`, `inlineDesign`, `almanac`). |
+| `towers/<nombre>.{json,toml}` (+ `[towers.*]`) | `guard.json`, `mtf.toml`... | Personal y estructuras defensivas (`cost`, `cooldown`, `maxHp`, combate, `particles`, `inlineDesign`, `almanac`). |
+| `effects/<nombre>.{json,toml}` (+ `[effects.*]`) | `<id>.{json,toml}` o diccionario | Efectos `builtin` y `declarative` reutilizables en torres, SCPs, casillas y eventos. |
+| `particles/<nombre>.{json,toml}` (+ `[particles.*]`) | `<id>.{json,toml}` o diccionario | Sistemas de partículas multicapa para despliegues, ataques, explosiones, impactos, auras y obstáculos. |
+| `designs/<seccion>.{json,toml}` (+ `[designs.*]`) | `board.toml`, `ui.json`, `[designs.animations.*]`... | Colores, sprites, `customShapes`, **presets de animación**, bordes, radios, barras de vida/escudo, proyectiles, `tileModifiers`, `obstacles` y `hudTheme`. |
+| `events/` + `events.{json,toml}` | Diccionario o archivos individuales | Eventos reutilizables con bloques `logic` y `visual`. |
+| `characters/` + `characters.{json,toml}` | Diccionario o archivos individuales | Personajes narrativos con retratos PNG y soporte para múltiples expresiones. |
+| `dialogues/` + `dialogues.{json,toml}` | Diccionario o archivos individuales | Conversaciones tipo novela visual con retratos dinámicos y ramificaciones. |
 
 > **Cómo funciona la carga por carpetas (`import.meta.glob`)**:
-> - En **`levels/`**, nombra cada archivo con el número del nivel (`1.json`, `2.json`, `3.json`, etc.). Si el objeto dentro del archivo omite `"level"`, el cargador deduce el número a partir del nombre del archivo (`1.json` → `level: 1`).
-> - En **`config.json -> levelOrder`**, defines exactamente qué niveles aparecen y en qué orden en la Ruta de Contención (ejemplo: `[1, 2, 3]` o `[1, 3, 2, 10]`). Si un archivo existe en `levels/` pero no figura en `levelOrder`, `levelOrder` marca la prioridad inicial y cualquier nivel extra se añade ordenado por su número (o puedes listar todos en `levelOrder`).
-> - En **`scps/`** y **`towers/`**, si un archivo omite `"type"`, se usa el nombre del archivo como `"type"`. Opcionalmente ordena con `config.json -> scpOrder` y `towerOrder`.
-> - En **`objectives/`**, **`effects/`**, **`particles/`**, **`events/`**, **`characters/`** y **`dialogues/`**, cada archivo puede contener **un solo objeto** (si omite `"id"`, toma el nombre del archivo) o **un diccionario/arreglo de varios**.
-> - En **`objectives.json`** y **`objetives.json`**, el motor acepta ambos nombres de archivo indistintamente (y además la carpeta `objectives/` o `objetives/`).
-> - En **`designs/`**, cualquier archivo JSON (como `designs/board.json` o `designs/hudTheme.json`) se fusiona automáticamente (`deepMerge`) sobre `designs.json`.
+> - En **`levels/`**, nombra cada archivo con el número del nivel (`1.json`, `2.json`, `4.toml`, etc.). Si el objeto dentro del archivo omite `level`, el cargador deduce el número a partir del nombre del archivo. En `catalogue.toml`, usa `[levels.1]`, `[levels.2]`, etc. para sobrescribir parcialmente niveles ya existentes.
+> - En **`config.json -> levelOrder`**, defines exactamente qué niveles aparecen y en qué orden en la Ruta de Contención. Cualquier nivel extra fuera de `levelOrder` se añade ordenado por número.
+> - En **`scps/`** y **`towers/`**, si un archivo omite `type`, se usa el nombre del archivo como `type`.
+> - En **`almanac/`**, **`objectives/`**, **`effects/`**, **`particles/`**, **`events/`**, **`characters/`** y **`dialogues/`**, cada archivo puede contener **un solo objeto** o un diccionario/arreglo.
+> - En **`designs/`**, cualquier archivo `.json` o `.toml` (como `src/data/toml/designs/custom.toml`) y las secciones `[designs.*]` de `catalogue.toml` se fusionan automáticamente (`deepMerge`) sobre `designs.json`.
 
 > **Rutas de imágenes PNG**: Para portadas de nivel (`coverImage`), retratos (`characters`), sprites de casillas (`tileOverrides`, `tileModifiers`), lápidas/obstáculos (`obstacles`, `tombstones`) o unidades (`designs`), puedes colocar imágenes en `public/assets/...` (`"/assets/mi_imagen.png"`) o en `src/assets/images/...`.
 
@@ -61,10 +83,18 @@ Accesible desde la pantalla principal con la contraseña definida en `config.jso
 
 - **Desbloqueo Personalizado por Nivel (`1..N`)**: libera niveles específicos sin ensuciar el progreso guardado en `localStorage`, o márcalos como completados hasta X.
 - **Todas las Torres: ON/OFF / Desbloquear Todo / Reiniciar Progreso / Salto Directo a Nivel**.
-- **Resumen en vivo del JSON cargado**: muestra el conteo actual de `Niveles`, `Torres`, `SCP`, `Efectos`, `Objetivos`, `Partículas`, `Eventos`, `Personajes` y `Diálogos`.
+- **Resumen en vivo de archivos y manifiestos cargados**: muestra el conteo actual de `Niveles`, `Torres`, `SCP`, `Efectos`, `Objetivos`, `Partículas`, `Eventos`, `Personajes`, `Diálogos`, `Almanaque`, los archivos `catalogue.*` activos y cualquier advertencia de sintaxis.
 
-### Archivo Táctico (`Archivo`)
-- Pestañas: **Amenazas SCP**, **Personal y Estructuras**, **Efectos** (con **Editor / Constructor JSON**), **Objetivos**, **Partículas** (con visor interactivo `<ParticleSystem />`), **Eventos**, **Personajes** y **Diálogos**.
+### Archivo Táctico y Almanaque (`Almanaque / Archivo`)
+Toda la personalización real del Almanaque se realiza editando archivos **`.toml` / `.json` / `.jsonc`** (especialmente **`src/data/catalogue.toml`**):
+
+- Pestaña principal **Almanaque**:
+  - Catálogo unificado de **SCP** y **Torres** con búsqueda, filtros y vista previa animada en `<canvas>` a 60fps sobre escenario configurable (rejilla, pedestal y estelas orbitales).
+  - **Selector de Diseño (`designs`) en vivo**: permite previsualizar cualquier entidad usando **cualquier diseño** de `designs.enemies`, `designs.towers` o `designs.customShapes` para probar cómo luce antes de fijar `designId` en `catalogue.toml`.
+  - **Selector de Animaciones en vivo**: alterna estados (`idle`, `walk`, `attack`, `ability`, `enraged`, `damaged`, `slowed`, `burning`, `stunned`, `disabled`), velocidad (`0.25x`–`2.5x`), pausa y disparo de partículas.
+  - **Fichas clasificadas e íconos**: renderiza `customFields` (sección de ficha técnica clasificada), `statOverrides` con íconos y orden numérico, `portraitFit`/`portraitBg` y colores personalizados de tarjeta (`cardBg`, `cardBorderColor`).
+  - **Inspector plegable de código (`Ver código catalogue.toml / JSON`)**: muestra en solo lectura el fragmento exacto `[almanac.enemies.<id>]` / `[almanac.towers.<id>]` (o formato `almanac.json`) con botón de copiar listo para pegar en tus archivos.
+- Otras pestañas: **Efectos** (con editor/inspector JSON y TOML), **Objetivos**, **Partículas** (con visor interactivo `<ParticleSystem />`), **Eventos**, **Personajes** y **Diálogos**.
 
 ---
 
@@ -156,6 +186,14 @@ Define los valores globales predeterminados cuando un nivel u objeto específico
 - `progression.autoDeckMaxLevel`: hasta este número de nivel el juego asigna automáticamente las torres desbloqueadas sin abrir el selector de mazo (a menos que el nivel defina `lockedDeck`).
 - `boardLayout.cellSize`: tamaño en píxeles de cada casilla lógica. El renderizador, las zonas de aura, los sprites de casillas y el cálculo de clics usan este valor dinámicamente.
 
+### 3.1 Bloque `[ui]` — Personalización Total de la Interfaz (desde `catalogue.toml` o `config.json`)
+Puedes reescribir textos, títulos, etiquetas, paleta global y tema del Almanaque sin tocar código React:
+- **`[ui.theme]`**: `appBg`, `surfaceBg`, `cardBg`, `borderColor`, `accentColor`, `accentSoft`, `textPrimary`, `textSecondary`.
+- **`[ui.titleScreen]`**: `eyebrow`, `title`, `subtitle`, `playButtonLabel`, `dossierButtonLabel`, `freePlayOnLabel`, `freePlayOffLabel`, `adminButtonLabel`, `trackTitle`, `trackSubtitle`.
+- **`[ui.loadout]`**: `eyebrow`, `backLabel`, `startButtonLabel`, `recommendedBadgeLabel`, `bannedBadgeLabel`, `lockedLabel`.
+- **`[ui.hud]`**: `energyLabel`, `waveLabel`, `prepLabel`, `pauseLabel`, `resumeLabel`, `speedLabel`, `exitLabel`, `dossierLabel`, `removeModeLabel`, `teslaReadyLabel`.
+- **`[ui.almanac]`**: `modalTitle`, `modalSubtitle`, `almanacTabLabel`, `searchPlaceholder`, `allFilterLabel`, `scpsFilterLabel`, `towersFilterLabel`, `designPickerLabel`, `animationStateLabel`, `statsSectionTitle`, `loreSectionTitle`, `proceduresSectionTitle`, `tacticalNoteTitle`, `customFieldsTitle`, `codePreviewTitle`.
+
 ---
 
 ## 4. `levels/<n>.json` — Niveles por Archivo, Portadas, Casillas, Lápidas y Oleadas
@@ -201,7 +239,20 @@ Cada nivel se guarda preferentemente en **`src/data/json/levels/<numero>.json`**
 | `flagMarkers` | `number[]` | No | Posiciones `0..1` en la barra de progreso; si se omite, se deducen de los eventos con `isFlagHorde: true`. |
 | `rewardLabel` | `string \| null` | No | Texto mostrado al completar el nivel. |
 | `unlockTower` | `TowerType` | No | ID de la torre desbloqueada al completar este nivel. |
-| `events` | `RawLevelEvent[]` | Sí | Línea temporal cronológica de oleadas y disparos puntuales. |
+| `subtitle` | `string` | No | Subtítulo corto mostrado bajo el título en la tarjeta de campaña. |
+| `difficulty` | `string` | No | Etiqueta de dificultad (`"normal"`, `"dificil"`, `"pesadilla"`, etc.) mostrada en selección de nivel. |
+| `themeColor` | `string` | No | Color hexadecimal temático del nodo/tarjeta del nivel (`"#F59E0B"`, `"#EF4444"`...). |
+| `badgeText` | `string` | No | Insignia destacada en el selector de nivel (`"OPERACIÓN CRÍTICA"`, `"BOSS"`...). |
+| `recommendedTowers` | `TowerType[]` | No | Unidades resaltadas como `"Recomendada"` en el selector de mazo. |
+| `prepTimeSec` | `number` | No | Segundos de preparación inicial antes de que comience el reloj de oleadas y aparezcan SCPs (el jugador puede recoger energía pasiva/cielo y desplegar torres durante la cuenta regresiva). |
+| `laneLabels` | `string[]` | No | Etiquetas por fila mostradas en el borde del tablero (`["Pasillo A", "Reactor", ...]`). |
+| `hudOverride` | `Partial<HudThemeConfig>` | No | Sobrescribe colores de la barra superior y paneles del HUD (`headerBg`, `panelBg`, `panelBorder`, `canvasBorderColor`) solo en este nivel. |
+| `gameplayOverride` | `Partial<GameConfig["gameplay"]>` | No | Sobrescribe reglas físicas/económicas de `config.gameplay` **solo para este nivel**: `energyDropAmount`, `initialSkyEnergyDelaySec`, `skyEnergyIntervalMinSec`, `skyEnergyIntervalVarianceSec`, `skyEnergyColMin`, `skyEnergyColSpan`, `energyDropLifetimeSec`, `energyDropCollectRadiusPx`, `removeRefundRatio`, `announcementDurationSec`, `flagBannerDurationSec`, `defaultFlagBanner`, `projectileSpeeds`, `doors079` y `teslaGate`. |
+| `towerOverrides` | `Record<string, LevelTowerOverride>` | No | Modifica por nivel estadísticas (`cost`, `cooldown`, `maxHp`, `damage`, `fireInterval`, `rangeCols`, `energyAmount`, `energyInterval`, `damageType`, `name`, `description`) y diseño visual (`design`) de torres específicas. |
+| `enemyOverrides` | `Record<string, LevelEnemyOverride>` | No | Modifica por nivel estadísticas (`hp`, `speed`, `dps`, `scoreValue`, `name`, `summary`) y diseño visual (`design`) de SCP específicos. |
+| `customDefeatTitle` / `customDefeatSubtitle` | `string` | No | Título y subtítulo personalizados para la pantalla de derrota de este nivel. |
+| `waves` | `RawLevelWave[]` | No | Formato compacto de oleadas por fases (`time`/`delaySec`, `absoluteTime`, `spawns: [{ type, count, row, staggerSec, ... }]`, `repeat`, `isFlagHorde`, `hordeLabel`, `announcement`). Se combina automáticamente con `events`. |
+| `events` | `RawLevelEvent[]` | Sí* | Línea temporal cronológica de oleadas y disparos puntuales (opcional si se usa `waves`). |
 
 ---
 
@@ -1256,4 +1307,183 @@ Además de `type`, `code`, `name`, `classification`, `hp`, `speed`, `dps`, `scor
   }
 }
 ```
+
+---
+
+## 15. Almanaque de Torres y SCP (`catalogue.toml`, `almanac.json` / `almanac.toml`)
+
+El **Almanaque** unifica en una sola interfaz interactiva todas las **Torres** y **SCP** con vista previa animada en `<canvas>` sobre un escenario configurable, selector dinámico de diseños provenientes de `designs` (`enemies.*`, `towers.*` y `customShapes.*`), descripciones extendidas, estadísticas personalizables con orden e íconos, campos clasificados y un inspector de código listo para copiar en **`src/data/catalogue.toml`** o JSON.
+
+### 15.1 Dónde definir entradas del Almanaque y Presets de Animación
+1. **Archivo maestro `src/data/catalogue.toml` (recomendado)**: organiza fichas en `[almanac.enemies.<id>]` y `[almanac.towers.<id>]`, y **presets reutilizables de animación** en `[designs.animations.<preset>]` o `[almanac.animations.<preset>]`.
+2. **Embebido dentro de una torre o SCP**: añade `"almanac": { ... }` o `[almanac]` en `towers/<id>.{json,toml}` o `scps/<id>.{json,toml}`.
+3. **Archivo `src/data/json/almanac.json` / `src/data/toml/almanac.toml` o carpeta `almanac/`**: organiza bajo `[enemies.<id>]` y `[towers.<id>]` (o archivos individuales indicando `targetKind`: `"enemy" | "tower"` y `targetType`).
+
+### 15.2 Presets Reutilizables de Animación (`[designs.animations.<preset>]`)
+Puedes definir perfiles de movimiento reutilizables en `[designs.animations.<nombre>]` y aplicarlos en cualquier entrada del almanaque (o por estado específico dentro de `animation.states.<estado>`) mediante `preset = "<nombre>"`:
+
+- **Transformaciones de movimiento soportadas (también en el tablero de juego)**:
+  - `bobSpeed` / `bobAmount`: oscilación vertical en píxeles.
+  - `swayAmp` / `swaySpeed`: balanceo lateral en X (píxeles).
+  - `tiltAmpDeg` / `tiltSpeed`: inclinación angular oscilante en grados.
+  - `squashAmp` / `squashSpeed`: compresión/estiramiento elástico (`scaleX`/`scaleY` inversos).
+  - `spinDegPerSec`: rotación continua en grados/segundo.
+  - `breatheAmp` / `breatheSpeed`: respiración uniforme en escala.
+  - `scaleX` / `scaleY` / `scale`: multiplicadores de escala base.
+  - `pulseSpeed`, `floatAmp`, `recoilIntervalSec`, `recoilStrength`.
+- **Personalización del escenario del visor en el Almanaque**:
+  - `backdropColor`, `pedestalColor`, `glowColor`
+  - `showGrid` (`boolean`), `gridColor` (`string`), `gridStep` (`number`)
+  - `showPedestal` (`boolean`), `pedestalStrokeColor` (`string`), `pedestalRadiusX` (`number`), `pedestalRadiusY` (`number`)
+  - `orbitCount` (`number`), `orbitRadius` (`number`), `orbitSpeed` (`number`), `orbitColor` (`string`) — chispas orbitales animadas alrededor de la unidad.
+  - `cardTransition` (`"none" | "fade" | "slide" | "scan" | "pulse"`) — efecto visual al cambiar de ficha.
+
+### 15.3 Esquema completo de `AlmanacEntryConfig`
+
+| Campo | Tipo | Descripción |
+| :--- | :--- | :--- |
+| `title` / `subtitle` / `code` / `classification` | `string` | Sobrescribe encabezados mostrados en la ficha del Almanaque. |
+| `description` | `string` | Descripción principal (si se omite, toma `summary` del SCP o `description` de la torre). |
+| `lore` | `string` | Expediente narrativo o historia clasificada. |
+| `containmentProcedures` | `string` | Protocolo de contención o despliegue recomendado. |
+| `tacticalNote` | `string` | Consejo táctico destacado en tarjeta ámbar. |
+| `quote` / `author` | `string` | Cita textual y autor atribuido. |
+| `clearanceLevel` / `threatRating` / `badgeText` | `string` | Metadatos de clasificación y amenaza. |
+| `accentColor` | `string` | Color de acento para bordes, insignias y barras por defecto. |
+| `cardBg` / `cardBorderColor` | `string` | Fondo y borde personalizados para el expediente del Almanaque. |
+| `tags` | `string[]` | Etiquetas de clasificación (`["Euclid", "Horda", ...]`). |
+| `visualMode` | `"design" \| "portrait" \| "both"` | Muestra diseño renderizado de `designs`, retrato PNG o ambos. |
+| `designId` | `string` | ID de diseño elegido de `designs`: `"enemies:<id>"`, `"towers:<id>"` o `"customShapes:<nombre>"`. |
+| `portrait` | `string` | Ruta a retrato alternativo cuando `visualMode` es `"portrait"` o `"both"`. |
+| `portraitFit` / `portraitBg` | `"cover" \| "contain"` / `string` | Ajuste y color de fondo del retrato dentro de la tarjeta. |
+| `customFields` | `Array<{ label, value, color?, badge? }>` | Secciones clave-valor extra en la **Ficha Técnica Clasificada** (p. ej. Origen, Vector, Rango Letal, Firma Energética). |
+| `hideDefaultStats` | `boolean` | Si es `true`, oculta las barras automáticas y muestra solo `stats`. |
+| `statOverrides` | `Record<string, AlmanacStatOverride>` | Sobrescribe `label`, `value`, `numericValue`, `maxValue`, `unit`, `color`, `bar`, `icon` (`"shield" \| "zap" \| "flame" \| "sword" \| "wind" \| "clock" \| "heart" \| "sparkles" \| "target"`), `order` (prioridad numérica de ordenación) o `hidden: true`. |
+| `stats` | `AlmanacStatItem[]` | Arreglo de estadísticas adicionales personalizadas (`id`, `label`, `value`, `numericValue`, `maxValue`, `unit`, `color`, `bar`, `icon`, `order`). |
+| `animation` | `AlmanacAnimationConfig` | Puede referenciar `preset = "<id>"`, configurar `defaultState`, `availableStates`, `autoPlay`, `speed`, `states.<estado>` (que también acepta `preset`), escenario (`showGrid`, `orbitCount`...), movimiento (`swayAmp`, `tiltAmpDeg`, `squashAmp`, `spinDegPerSec`...), `particlePresetId` y `cardTransition`. |
+
+### 15.4 Ejemplo completo en `src/data/catalogue.toml`
+
+```toml
+[ui.titleScreen]
+eyebrow = "FUNDACIÓN SCP · SITIO-19 · DIRECTIVA O5"
+title = "SITIO-19: CONTENCIÓN TÁCTICA"
+
+[designs.animations.feral_lunge]
+bobSpeed = 4.6
+bobAmount = 3.2
+swayAmp = 2.4
+swaySpeed = 3.2
+tiltAmpDeg = 5.5
+tiltSpeed = 4.2
+squashAmp = 0.08
+squashSpeed = 5.0
+orbitCount = 2
+orbitRadius = 38
+orbitSpeed = 1.6
+orbitColor = "#84CC16"
+showGrid = true
+
+[almanac.enemies.scp_008]
+subtitle = "Vector Priónico Clase Euclid · Contagio Biológico"
+clearanceLevel = "Nivel 2 / Bioseguridad"
+threatRating = "Moderado · Propagación en Masa"
+cardBg = "#0D1610"
+cardBorderColor = "rgba(132, 204, 22, 0.35)"
+lore = "El agente SCP-008 es un prión complejo. Los sujetos infectados avanzan sin sentir dolor."
+quote = "No sienten miedo ni retroceden."
+author = "Dr. Gears"
+tags = ["Biológico", "Horda", "Euclid"]
+visualMode = "both"
+designId = "enemies:scp_008"
+portraitFit = "cover"
+
+[almanac.enemies.scp_008.statOverrides.hp]
+label = "Resistencia Necrótica"
+color = "#84CC16"
+icon = "shield"
+order = 1
+
+[almanac.enemies.scp_008.animation]
+preset = "feral_lunge"
+defaultState = "walk"
+speed = 1.15
+scale = 1.08
+pedestalColor = "#14261B"
+backdropColor = "#09110C"
+glowColor = "rgba(132, 204, 22, 0.38)"
+cardTransition = "scan"
+
+[almanac.enemies.scp_008.animation.states.attack]
+speed = 1.45
+recoilIntervalSec = 0.8
+recoilStrength = 0.95
+tiltAmpDeg = 9.0
+
+[[almanac.enemies.scp_008.customFields]]
+label = "Vector"
+value = "Fluido / Mordida"
+badge = "EUCLID"
+color = "#84CC16"
+
+[[almanac.enemies.scp_008.stats]]
+id = "contagion_rate"
+label = "Propagación"
+value = "Alta en grupo"
+numericValue = 78
+maxValue = 100
+color = "#84CC16"
+icon = "flame"
+order = 4
+bar = true
+
+[levels.1.gameplayOverride]
+energyDropAmount = 50
+removeRefundRatio = 0.35
+```
+
+### 15.5 Ejemplo de nivel personalizado en TOML (`src/data/toml/levels/4.toml` opcional)
+
+```toml
+level = 4
+title = "Contención Térmica"
+subtitle = "Corredor Experimental de Prueba"
+difficulty = "dificil"
+themeColor = "#F97316"
+badgeText = "TOML DEMO"
+startingEnergy = 200
+maxDeckSlots = 6
+prepTimeSec = 8
+recommendedTowers = ["researcher", "guard", "pyro"]
+laneLabels = ["Norte", "Conducto A", "Reactor", "Conducto B", "Almacén", "Sur"]
+
+[hudOverride]
+headerBg = "#1C1412"
+canvasBorderColor = "#EA580C"
+
+[gameplayOverride]
+energyDropAmount = 60
+initialSkyEnergyDelaySec = 6
+
+[towerOverrides.guard]
+cost = 85
+damage = 28
+
+[[waves]]
+delaySec = 4
+announcement = "Primera oleada de prueba desde compuertas orientales."
+isFlagHorde = false
+
+[[waves.spawns]]
+type = "scp_008"
+count = 3
+staggerSec = 1.4
+
+[[waves.spawns]]
+type = "scp_966"
+count = 1
+row = 2
+```
+
+
 

@@ -97,6 +97,7 @@ export interface SimState {
   autoCollectEnergy?: boolean;
   skyEnergy?: LevelSkyEnergyConfig;
   energy: number;
+  prepTimer: number;
   levelTimer: number;
   timeline: LevelEvent[];
   spawnedIndices: Set<number>;
@@ -161,8 +162,23 @@ export type SimOutcome = 'PLAYING' | 'VICTORY' | 'GAME_OVER';
 let uidCounter = 1;
 export const nextSimId = (prefix: string) => `${prefix}_${uidCounter++}`;
 
+export function getEffectiveGameplay(levelConfig?: LevelConfig) {
+  const base = GAME_CONFIG.gameplay;
+  const ov = levelConfig?.gameplayOverride;
+  if (!ov) return base;
+  return {
+    ...base,
+    ...ov,
+    projectileSpeeds: ov.projectileSpeeds
+      ? { ...base.projectileSpeeds, ...ov.projectileSpeeds }
+      : base.projectileSpeeds,
+    doors079: ov.doors079 ? { ...base.doors079, ...ov.doors079 } : base.doors079,
+    teslaGate: ov.teslaGate ? { ...base.teslaGate, ...ov.teslaGate } : base.teslaGate,
+  };
+}
+
 const enemyDefCache = new Map<EnemyType, EnemyDefinition>();
-function getEnemyDef(type: EnemyType): EnemyDefinition | undefined {
+function getBaseEnemyDef(type: EnemyType): EnemyDefinition | undefined {
   let cached = enemyDefCache.get(type);
   if (!cached) {
     cached = ENEMY_CATALOG.find((e) => e.type === type);
@@ -171,14 +187,73 @@ function getEnemyDef(type: EnemyType): EnemyDefinition | undefined {
   return cached;
 }
 
+export function getEffectiveEnemyDef(
+  type: EnemyType,
+  levelConfig?: LevelConfig
+): EnemyDefinition | undefined {
+  const base = getBaseEnemyDef(type);
+  if (!base) return undefined;
+  const ov = levelConfig?.enemyOverrides?.[type];
+  if (!ov) return base;
+  return {
+    ...base,
+    code: ov.code ?? base.code,
+    name: ov.name ?? base.name,
+    summary: ov.summary ?? base.summary,
+    hp: ov.hp ?? base.hp,
+    speed: ov.speed ?? base.speed,
+    dps: ov.dps ?? base.dps,
+    scoreValue: ov.scoreValue ?? base.scoreValue,
+    behavior: ov.behavior
+      ? {
+          ...(base.behavior ?? {}),
+          ...ov.behavior,
+        }
+      : base.behavior,
+  };
+}
+
+function getEnemyDef(type: EnemyType, levelConfig?: LevelConfig): EnemyDefinition | undefined {
+  return getEffectiveEnemyDef(type, levelConfig);
+}
+
 const towerDefCache = new Map<TowerType, TowerDefinition>();
-function getTowerDef(type: TowerType): TowerDefinition | undefined {
+function getBaseTowerDef(type: TowerType): TowerDefinition | undefined {
   let cached = towerDefCache.get(type);
   if (!cached) {
     cached = TOWER_CATALOG.find((t) => t.type === type);
     if (cached) towerDefCache.set(type, cached);
   }
   return cached;
+}
+
+export function getEffectiveTowerDef(
+  type: TowerType,
+  levelConfig?: LevelConfig
+): TowerDefinition | undefined {
+  const base = getBaseTowerDef(type);
+  if (!base) return undefined;
+  const ov = levelConfig?.towerOverrides?.[type];
+  if (!ov) return base;
+  return {
+    ...base,
+    name: ov.name ?? base.name,
+    roleLabel: ov.roleLabel ?? base.roleLabel,
+    description: ov.description ?? base.description,
+    cost: ov.cost ?? base.cost,
+    cooldown: ov.cooldown ?? base.cooldown,
+    maxHp: ov.maxHp ?? base.maxHp,
+    damage: ov.damage ?? base.damage,
+    fireRate: ov.fireRate ?? base.fireRate,
+    maxRangeCols: ov.maxRangeCols ?? base.maxRangeCols,
+    energyAmount: ov.energyAmount ?? base.energyAmount,
+    energyInterval: ov.energyInterval ?? base.energyInterval,
+    damageType: ov.damageType ?? base.damageType,
+  };
+}
+
+function getTowerDef(type: TowerType, levelConfig?: LevelConfig): TowerDefinition | undefined {
+  return getEffectiveTowerDef(type, levelConfig);
 }
 
 export function emitSimParticles(
@@ -211,9 +286,10 @@ export function emitSimParticles(
 export function getEffectiveTowerCost(
   type: TowerType,
   rules?: LevelRulesConfig,
-  sim?: SimState
+  sim?: SimState,
+  levelConfig?: LevelConfig
 ): number {
-  const def = getTowerDef(type);
+  const def = getTowerDef(type, levelConfig ?? sim?.levelConfig);
   if (!def) return 0;
   const deployedCount =
     sim && def.costScalePerDeployed
@@ -223,8 +299,12 @@ export function getEffectiveTowerCost(
   return Math.max(0, Math.round(raw));
 }
 
-export function getEffectiveTowerCooldown(type: TowerType, rules?: LevelRulesConfig): number {
-  const def = getTowerDef(type);
+export function getEffectiveTowerCooldown(
+  type: TowerType,
+  rules?: LevelRulesConfig,
+  levelConfig?: LevelConfig
+): number {
+  const def = getTowerDef(type, levelConfig);
   if (!def) return 0;
   return Math.max(0.1, def.cooldown * (rules?.towerCooldownMultiplier ?? 1));
 }
@@ -480,13 +560,15 @@ export function createInitialSim(levelConfig: LevelConfig): SimState {
     autoCollectEnergy: levelConfig.autoCollectEnergy,
     skyEnergy: levelConfig.skyEnergy,
     energy: levelConfig.startingEnergy,
+    prepTimer: Math.max(0, levelConfig.prepTimeSec ?? 0),
     levelTimer: 0,
     timeline: resolveMatchTimeline(levelConfig, gridRows),
     spawnedIndices: new Set<number>(),
     spawned079: false,
     doorsSpawned079: false,
     skyEnergyTimer:
-      levelConfig.skyEnergy?.initialDelaySec ?? GAME_CONFIG.gameplay.initialSkyEnergyDelaySec,
+      levelConfig.skyEnergy?.initialDelaySec ??
+      getEffectiveGameplay(levelConfig).initialSkyEnergyDelaySec,
     blinkTimer: 0,
     blinkAlpha: 0,
     shakeIntensity: 0,
@@ -514,7 +596,7 @@ export function createInitialSim(levelConfig: LevelConfig): SimState {
     obstacleDestroyedCount: 0,
     elapsedTime: 0,
     announcement: `Nivel ${levelConfig.level}: ${levelConfig.title}.`,
-    announcementTimer: GAME_CONFIG.gameplay.announcementDurationSec,
+    announcementTimer: getEffectiveGameplay(levelConfig).announcementDurationSec,
     flagBanner: '',
     flagBannerTimer: 0,
     activeScriptEvents: [],
@@ -563,7 +645,7 @@ export function createInitialSim(levelConfig: LevelConfig): SimState {
   // Starting Towers
   const towerHpMult = levelConfig.rules?.towerHpMultiplier ?? 1;
   for (const st of levelConfig.startingTowers ?? []) {
-    const def = getTowerDef(st.type as TowerType);
+    const def = getTowerDef(st.type as TowerType, levelConfig);
     if (!def) continue;
     const row = Math.max(0, Math.min(gridRows - 1, st.row));
     const col = Math.max(0, Math.min(gridCols - 1, st.col));
@@ -721,7 +803,7 @@ export function spawnEnemyAt(
   packId?: string,
   waveOpts?: WaveSpawnOverrides
 ) {
-  const def = getEnemyDef(type);
+  const def = getEnemyDef(type, s.levelConfig);
   if (!def) return;
 
   const spawnRule = def.behavior?.spawnRule;
@@ -891,7 +973,7 @@ export function spawnEnemyGroup(
   waveOpts?: WaveSpawnOverrides,
   customCol?: number
 ) {
-  const def = getEnemyDef(type);
+  const def = getEnemyDef(type, s.levelConfig);
   const packId = def?.behavior?.defaultPackCount ? nextSimId('pack') : undefined;
   const edgeSpawnCol = customCol ?? s.gridCols - 0.15;
   targets.forEach((target, idx) => {
@@ -903,22 +985,23 @@ export function spawnEnemyGroup(
     soundEngine.playReptile682();
   }
 
+  const gp = getEffectiveGameplay(s.levelConfig);
   if (isFlagHorde) {
-    s.flagBanner = hordeLabel || GAME_CONFIG.gameplay.defaultFlagBanner;
-    s.flagBannerTimer = GAME_CONFIG.gameplay.flagBannerDurationSec;
+    s.flagBanner = hordeLabel || gp.defaultFlagBanner;
+    s.flagBannerTimer = gp.flagBannerDurationSec;
     soundEngine.playFlagHorde();
   } else if (waveOpts?.announcement) {
     s.announcement = waveOpts.announcement;
-    s.announcementTimer = GAME_CONFIG.gameplay.announcementDurationSec;
+    s.announcementTimer = gp.announcementDurationSec;
   } else if (def?.announcement) {
     s.announcement = def.announcement;
-    s.announcementTimer = GAME_CONFIG.gameplay.announcementDurationSec;
+    s.announcementTimer = gp.announcementDurationSec;
   }
 }
 
 export function collectEnergyDropInSim(s: SimState, px: number, py: number): boolean {
   const { gateWidth, padTop, cellSize } = GAME_CONFIG.boardLayout;
-  const collectRadius = GAME_CONFIG.gameplay.energyDropCollectRadiusPx;
+  const collectRadius = getEffectiveGameplay(s.levelConfig).energyDropCollectRadiusPx;
   const idx = s.energyDrops.findIndex((drop) => {
     const dropPxX = gateWidth + drop.xCol * cellSize + cellSize / 2;
     const dropPxY = padTop + drop.yRow * cellSize + cellSize / 2;
@@ -952,8 +1035,8 @@ export function removeTowerInSim(s: SimState, row: number, col: number): boolean
   if (existingIdx === -1) return false;
 
   const removed = s.towers[existingIdx];
-  const cost = getEffectiveTowerCost(removed.type, s.rules);
-  const refund = Math.round(cost * GAME_CONFIG.gameplay.removeRefundRatio);
+  const cost = getEffectiveTowerCost(removed.type, s.rules, s, s.levelConfig);
+  const refund = Math.round(cost * getEffectiveGameplay(s.levelConfig).removeRefundRatio);
   s.energy += refund;
   if (s.rules?.energyCap !== undefined) {
     s.energy = Math.min(s.rules.energyCap, s.energy);
@@ -983,7 +1066,7 @@ export function canPlaceTowerAt(
 ): boolean {
   if (row < 0 || row >= s.gridRows || col < 0 || col >= s.gridCols) return false;
   if (isCellBlocked(s, row, col)) return false;
-  const def = getTowerDef(towerType);
+  const def = getTowerDef(towerType, s.levelConfig);
   if (!def) return false;
 
   const obstacle = s.obstacles.find((o) => o.row === row && o.col === col && o.blocksPlacement);
@@ -1026,9 +1109,9 @@ export function placeTowerInSim(
   col: number
 ): boolean {
   if (!canPlaceTowerAt(s, towerType, row, col)) return false;
-  const def = getTowerDef(towerType);
+  const def = getTowerDef(towerType, s.levelConfig);
   if (!def) return false;
-  const effectiveCost = getEffectiveTowerCost(towerType, s.rules, s);
+  const effectiveCost = getEffectiveTowerCost(towerType, s.rules, s, s.levelConfig);
   if (s.energy < effectiveCost || (s.cooldowns[def.type] ?? 0) > 0) return false;
 
   // Counter-unit clears destructible tombstone / obstacle directly on placement (PvZ Grave Buster style)
@@ -1056,7 +1139,7 @@ export function placeTowerInSim(
   s.energy -= effectiveCost;
   s.energySpentTotal += effectiveCost;
   s.deployedTowerTypesUsed.add(def.type);
-  s.cooldowns[def.type] = getEffectiveTowerCooldown(towerType, s.rules);
+  s.cooldowns[def.type] = getEffectiveTowerCooldown(towerType, s.rules, s.levelConfig);
   s.towersDeployed += 1;
 
   if (def.deployEnergyBonus) {
@@ -1174,7 +1257,7 @@ function applyMitigatedEnemyDamage(
   dmgOpts?: { damageType?: DamageTypeKind; armorPenetration?: number }
 ): number {
   if (rawDmg <= 0 || enemy.hp <= 0) return 0;
-  const def = getEnemyDef(enemy.type);
+  const def = getEnemyDef(enemy.type, s.levelConfig);
 
   if (sourceTowerId && def?.behavior?.dodgeChance && Math.random() < def.behavior.dodgeChance) {
     s.effects.push({
@@ -1314,9 +1397,18 @@ function applyMitigatedTowerDamage(
 }
 
 export function stepSimulation(s: SimState, dt: number): SimOutcome {
-  const gp = GAME_CONFIG.gameplay;
+  const gp = getEffectiveGameplay(s.levelConfig);
   s.elapsedTime += dt;
-  s.levelTimer += dt;
+  const inPrep = s.prepTimer > 0;
+  if (inPrep) {
+    s.prepTimer = Math.max(0, s.prepTimer - dt);
+    if (s.prepTimer <= 0 && s.announcementTimer <= 0) {
+      s.announcement = 'Preparación completada. ¡Contención activa!';
+      s.announcementTimer = 2.6;
+    }
+  } else {
+    s.levelTimer += dt;
+  }
 
   if (s.announcementTimer > 0) s.announcementTimer = Math.max(0, s.announcementTimer - dt);
   if (s.flagBannerTimer > 0) s.flagBannerTimer = Math.max(0, s.flagBannerTimer - dt);
@@ -1379,80 +1471,82 @@ export function stepSimulation(s: SimState, dt: number): SimOutcome {
     }
   }
 
-  // 3. Level timeline spawner + event triggers
+  // 3. Level timeline spawner + event triggers (held until prepTimer completes)
   let hadFlagHorde = false;
-  s.timeline.forEach((ev, idx) => {
-    if (!s.spawnedIndices.has(idx) && s.levelTimer >= ev.time) {
-      s.spawnedIndices.add(idx);
-      s.recentlyTriggeredWaveIndices.push(idx + 1);
-      if (ev.isFlagHorde) hadFlagHorde = true;
+  if (!inPrep) {
+    s.timeline.forEach((ev, idx) => {
+      if (!s.spawnedIndices.has(idx) && s.levelTimer >= ev.time) {
+        s.spawnedIndices.add(idx);
+        s.recentlyTriggeredWaveIndices.push(idx + 1);
+        if (ev.isFlagHorde) hadFlagHorde = true;
 
-      if (ev.dialogueId || ev.inlineDialogue) {
-        s.pendingDialogues.push({
-          dialogueId: ev.dialogueId,
-          inlineDialogue: ev.inlineDialogue,
-        });
-      }
+        if (ev.dialogueId || ev.inlineDialogue) {
+          s.pendingDialogues.push({
+            dialogueId: ev.dialogueId,
+            inlineDialogue: ev.inlineDialogue,
+          });
+        }
 
-      if (ev.type && ev.targets.length > 0) {
-        const waveOpts: WaveSpawnOverrides = {
-          hpMultiplier: ev.hpMultiplier,
-          speedMultiplier: ev.speedMultiplier,
-          dpsMultiplier: ev.dpsMultiplier,
-          extraEffects: ev.extraEffects,
-          immunities: ev.immunities,
-          eliteBadge: ev.eliteBadge,
-          eliteColor: ev.eliteColor,
-          announcement: ev.announcement,
-        };
-        if (ev.staggerSec && ev.staggerSec > 0 && ev.targets.length > 1) {
-          spawnEnemyGroup(s, ev.type, [ev.targets[0]], ev.isFlagHorde, ev.hordeLabel, waveOpts, ev.col);
-          for (let i = 1; i < ev.targets.length; i++) {
-            s.pendingStaggeredSpawns.push({
-              delay: i * ev.staggerSec,
-              type: ev.type,
-              target: ev.targets[i],
-              col: ev.col ?? s.gridCols - 0.15,
-              waveOpts: { ...waveOpts, announcement: undefined },
-            });
+        if (ev.type && ev.targets.length > 0) {
+          const waveOpts: WaveSpawnOverrides = {
+            hpMultiplier: ev.hpMultiplier,
+            speedMultiplier: ev.speedMultiplier,
+            dpsMultiplier: ev.dpsMultiplier,
+            extraEffects: ev.extraEffects,
+            immunities: ev.immunities,
+            eliteBadge: ev.eliteBadge,
+            eliteColor: ev.eliteColor,
+            announcement: ev.announcement,
+          };
+          if (ev.staggerSec && ev.staggerSec > 0 && ev.targets.length > 1) {
+            spawnEnemyGroup(s, ev.type, [ev.targets[0]], ev.isFlagHorde, ev.hordeLabel, waveOpts, ev.col);
+            for (let i = 1; i < ev.targets.length; i++) {
+              s.pendingStaggeredSpawns.push({
+                delay: i * ev.staggerSec,
+                type: ev.type,
+                target: ev.targets[i],
+                col: ev.col ?? s.gridCols - 0.15,
+                waveOpts: { ...waveOpts, announcement: undefined },
+              });
+            }
+          } else {
+            spawnEnemyGroup(s, ev.type, ev.targets, ev.isFlagHorde, ev.hordeLabel, waveOpts, ev.col);
           }
-        } else {
-          spawnEnemyGroup(s, ev.type, ev.targets, ev.isFlagHorde, ev.hordeLabel, waveOpts, ev.col);
+        }
+
+        if (ev.eventId || ev.event) {
+          const resolved = resolveEventDefinition(ev.eventId, ev.eventOverrides, ev.event);
+          if (resolved) {
+            const ctxPos =
+              ev.targets.length > 0
+                ? { row: ev.targets[0].row, col: ev.col ?? s.gridCols - 1 }
+                : undefined;
+            executeLevelEvent(
+              s,
+              resolved,
+              nextSimId,
+              spawnEnemyAt,
+              hasEnemyImmunity,
+              ctxPos,
+              EVENT_ENGINE_CALLBACKS
+            );
+          }
         }
       }
+    });
 
-      if (ev.eventId || ev.event) {
-        const resolved = resolveEventDefinition(ev.eventId, ev.eventOverrides, ev.event);
-        if (resolved) {
-          const ctxPos =
-            ev.targets.length > 0
-              ? { row: ev.targets[0].row, col: ev.col ?? s.gridCols - 1 }
-              : undefined;
-          executeLevelEvent(
-            s,
-            resolved,
-            nextSimId,
-            spawnEnemyAt,
-            hasEnemyImmunity,
-            ctxPos,
-            EVENT_ENGINE_CALLBACKS
-          );
-        }
-      }
-    }
-  });
-
-  // 3.1 Step scripted level events, staggered spawns, weather, tints, and chained events
-  stepLevelEvents(
-    s,
-    dt,
-    hadFlagHorde,
-    s.levelConfig,
-    nextSimId,
-    spawnEnemyAt,
-    hasEnemyImmunity,
-    EVENT_ENGINE_CALLBACKS
-  );
+    // 3.1 Step scripted level events, staggered spawns, weather, tints, and chained events
+    stepLevelEvents(
+      s,
+      dt,
+      hadFlagHorde,
+      s.levelConfig,
+      nextSimId,
+      spawnEnemyAt,
+      hasEnemyImmunity,
+      EVENT_ENGINE_CALLBACKS
+    );
+  }
 
   // Check objectives & victory conditions
   const earlyObjRes = stepObjectives(s);
@@ -1745,7 +1839,7 @@ export function stepSimulation(s: SimState, dt: number): SimOutcome {
 
   for (const tower of s.towers) {
     if (tower.hp <= 0 || towersToRemove.has(tower.id)) continue;
-    const def = getTowerDef(tower.type);
+    const def = getTowerDef(tower.type, s.levelConfig);
     if (!def) continue;
 
     if (def.regenHpPerSec && tower.hp < tower.maxHp) {
@@ -2606,7 +2700,7 @@ export function stepSimulation(s: SimState, dt: number): SimOutcome {
 
   for (const enemy of s.enemies) {
     if (enemy.hp <= 0) continue;
-    const def = getEnemyDef(enemy.type);
+    const def = getEnemyDef(enemy.type, s.levelConfig);
     const behavior = def?.behavior;
 
     enemy.animPhase += dt;

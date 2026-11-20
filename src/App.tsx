@@ -51,6 +51,12 @@ export default function App() {
   const [isFullscreen, setIsFullscreen] = useState(false);
 
   useEffect(() => {
+    if (screen !== 'game') {
+      document.body.dataset.state = 'title';
+    }
+  }, [screen]);
+
+  useEffect(() => {
     const onFsChange = () => {
       setIsFullscreen(Boolean(document.fullscreenElement));
     };
@@ -93,7 +99,7 @@ export default function App() {
     LEVEL_CATALOG.find((l) => l.level === currentLevelNum) ?? LEVEL_CATALOG[0];
 
   const enterLevel = useCallback(
-    (levelNumber: number) => {
+    (levelNumber: number, skipLoadout = false) => {
       const targetConfig =
         LEVEL_CATALOG.find((l) => l.level === levelNumber) ?? LEVEL_CATALOG[0];
       setCurrentLevelNum(levelNumber);
@@ -113,7 +119,7 @@ export default function App() {
       const banned = new Set(targetConfig.rules?.bannedTowers ?? []);
       const allowedUnlocked = unlockedTowers.filter((t) => !banned.has(t));
 
-      if (levelNumber <= GAME_CONFIG.progression.autoDeckMaxLevel) {
+      if (skipLoadout || levelNumber <= GAME_CONFIG.progression.autoDeckMaxLevel) {
         const fallbackDeck =
           allowedUnlocked.length > 0 ? allowedUnlocked : unlockedTowers;
         setActiveDeck(fallbackDeck.slice(0, targetConfig.maxDeckSlots));
@@ -124,6 +130,18 @@ export default function App() {
     },
     [unlockedTowers]
   );
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('autostart') === '1') {
+      const rawLvl = Number(params.get('level'));
+      const targetLvl =
+        rawLvl && LEVEL_CATALOG.some((l) => l.level === rawLvl)
+          ? rawLvl
+          : LEVEL_CATALOG[0]?.level ?? 1;
+      enterLevel(targetLvl, true);
+    }
+  }, []);
 
   const handleLevelComplete = useCallback((levelNumber: number) => {
     setCompletedLevels((prev) => {

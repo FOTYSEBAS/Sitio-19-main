@@ -1,20 +1,48 @@
 import type { ParticlePresetDefinition } from '../types/game';
+import { CATALOGUE_MANIFEST } from './catalogueManifest';
+import type { CatalogLoadIssue } from './formatParser';
+import { deepMergePlain, isPlainObject, parseRawGlobMap } from './globHelper';
 
-const legacyModules = import.meta.glob('./json/particles.json', { eager: true });
-const folderModules = import.meta.glob('./json/particles/*.json', { eager: true });
-
-function filenameSlug(path: string): string {
-  const base = path.split('/').pop() ?? '';
-  return base.replace(/\.json$/i, '');
+function getRawModules(): Record<string, unknown> {
+  try {
+    return import.meta.glob(
+      [
+        './json/particles.{json,jsonc,toml}',
+        './json/particles/*.{json,jsonc,toml}',
+        './toml/particles.{json,jsonc,toml}',
+        './toml/particles/*.{json,jsonc,toml}',
+      ],
+      { query: '?raw', import: 'default', eager: true }
+    );
+  } catch {
+    return {};
+  }
 }
 
-function unwrap(mod: unknown): unknown {
-  return typeof mod === 'object' && mod !== null && 'default' in mod
-    ? (mod as { default?: unknown }).default
-    : mod;
+function mergePreset(
+  out: Record<string, ParticlePresetDefinition>,
+  id: string,
+  def: Partial<ParticlePresetDefinition>
+) {
+  const prev = out[id];
+  const merged = prev
+    ? (deepMergePlain(
+        prev as unknown as Record<string, unknown>,
+        def as unknown as Record<string, unknown>
+      ) as unknown as Partial<ParticlePresetDefinition>)
+    : def;
+  out[id] = {
+    ...merged,
+    id,
+    emitters: Array.isArray(merged.emitters) ? merged.emitters : [],
+  };
 }
 
-function ingest(raw: unknown, out: Record<string, ParticlePresetDefinition>, fallbackId?: string) {
+export function ingestParticlesCatalog(
+  raw: unknown,
+  out: Record<string, ParticlePresetDefinition>,
+  fallbackId?: string
+) {
   if (!raw || typeof raw !== 'object') return;
 
   const sourceObj =
@@ -26,13 +54,8 @@ function ingest(raw: unknown, out: Record<string, ParticlePresetDefinition>, fal
 
   if (Array.isArray(sourceObj)) {
     for (const item of sourceObj) {
-      if (item && typeof item === 'object' && 'id' in item && typeof item.id === 'string') {
-        const def = item as Partial<ParticlePresetDefinition>;
-        out[item.id] = {
-          ...def,
-          id: item.id,
-          emitters: Array.isArray(def.emitters) ? def.emitters : [],
-        };
+      if (isPlainObject(item) && typeof item.id === 'string') {
+        mergePreset(out, item.id, item as Partial<ParticlePresetDefinition>);
       }
     }
     return;
@@ -41,36 +64,30 @@ function ingest(raw: unknown, out: Record<string, ParticlePresetDefinition>, fal
   const obj = sourceObj as Record<string, unknown>;
   if (fallbackId && Array.isArray(obj.emitters)) {
     const def = obj as Partial<ParticlePresetDefinition>;
-    const id = def.id ?? fallbackId;
-    out[id] = {
-      ...def,
-      id,
-      emitters: def.emitters ?? [],
-    };
+    mergePreset(out, def.id ?? fallbackId, def);
     return;
   }
 
   for (const [key, val] of Object.entries(obj)) {
     if (key.startsWith('_')) continue;
-    if (val && typeof val === 'object') {
+    if (isPlainObject(val)) {
       const def = val as Partial<ParticlePresetDefinition>;
-      const id = def.id ?? key;
-      out[id] = {
-        ...def,
-        id,
-        emitters: Array.isArray(def.emitters) ? def.emitters : [],
-      };
+      mergePreset(out, def.id ?? key, def);
     }
   }
 }
 
+export const PARTICLE_LOAD_ISSUES: CatalogLoadIssue[] = [];
+
 function parseParticlesCatalog(): Record<string, ParticlePresetDefinition> {
   const out: Record<string, ParticlePresetDefinition> = {};
-  for (const mod of Object.values(legacyModules)) {
-    ingest(unwrap(mod), out);
+  const entries = parseRawGlobMap(getRawModules(), PARTICLE_LOAD_ISSUES);
+  for (const entry of entries) {
+    const isFolder = entry.path.includes('/particles/');
+    ingestParticlesCatalog(entry.data, out, isFolder ? entry.slug : undefined);
   }
-  for (const [path, mod] of Object.entries(folderModules)) {
-    ingest(unwrap(mod), out, filenameSlug(path));
+  if (CATALOGUE_MANIFEST.particles) {
+    ingestParticlesCatalog(CATALOGUE_MANIFEST.particles, out);
   }
   return out;
 }
