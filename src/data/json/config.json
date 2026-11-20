@@ -1,0 +1,73 @@
+{
+  "app": {
+    "title": "Sitio-19: Defensa SCP",
+    "storageKey": "sitio19_completed_levels_v1",
+    "sectorBackdropImage": "/src/assets/images/SCPlogo.webp"
+  },
+  "levelOrder": [1, 2, 3],
+  "scpOrder": ["scp_008"],
+  "towerOrder": ["researcher", "lightGuard"],
+  "grid": {
+    "rows": 6,
+    "cols": 9
+  },
+  "boardLayout": {
+    "gateWidth": 58,
+    "breachMargin": 28,
+    "padTop": 14,
+    "padBottom": 14,
+    "cellSize": 92
+  },
+  "progression": {
+    "autoDeckMaxLevel": 6,
+    "defaultStarterDeck": ["researcher", "lightGuard"],
+    "defaultDeckPriority": ["researcher", "lightGuard"],
+    "sectors": [
+      { "id": 1, "label": "Sector I (1-10)", "start": 1, "end": 10 }
+    ]
+  },
+  "gameplay": {
+    "energyDropAmount": 50,
+    "initialSkyEnergyDelaySec": 10,
+    "skyEnergyIntervalMinSec": 6.5,
+    "skyEnergyIntervalVarianceSec": 2.0,
+    "skyEnergyColMin": 1,
+    "skyEnergyColSpan": 6,
+    "energyDropLifetimeSec": 12,
+    "energyDropCollectRadiusPx": 34,
+    "removeRefundRatio": 0.25,
+    "announcementDurationSec": 5.0,
+    "flagBannerDurationSec": 4.5,
+    "defaultFlagBanner": "Se aproxima una horda de SCPs",
+    "projectileSpeeds": {
+      "standard": 6.4,
+      "mtf": 6.4,
+      "cryo": 6.4,
+      "turret": 7.4,
+      "sniper": 9.6,
+      "shotgun": 7.8,
+      "pyro": 6.4,
+      "heavy": 8.0,
+      "grenade": 5.2,
+      "psionic": 6.4
+    },
+    "doors079": {
+      "minCol": 4,
+      "toggleMinSec": 2.2,
+      "toggleVarianceSec": 2.8
+    },
+    "teslaGate": {
+      "firingDurationSec": 0.75,
+      "sweepSpeedColsPerSec": 15
+    }
+  },
+  "trackUi": {
+    "nodeSpacing": 148,
+    "trackHeight": 246,
+    "waveAmplitude": 44
+  },
+  "admin": {
+    "secret": "",
+    "quickJumpLevels": [1, 10, 15, 20]
+  }
+}

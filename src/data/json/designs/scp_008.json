@@ -1,0 +1,161 @@
+{
+  "customShapes": {
+    "scp 008": {
+      "layers": [
+        {
+          "type": "circle",
+          "fill": "$body",
+          "stroke": "#296041",
+          "lineWidth": 1,
+          "x": -10,
+          "y": 3,
+          "r": 4,
+          "applyBob": false
+        },
+        {
+          "type": "roundRect",
+          "fill": "#552020",
+          "stroke": "#3e1e1e",
+          "lineWidth": 2,
+          "x": -8,
+          "y": -7,
+          "w": 17,
+          "h": 27,
+          "r": 5,
+          "applyBob": true
+        },
+        {
+          "type": "circle",
+          "fill": "$body",
+          "stroke": "#296041",
+          "lineWidth": 2,
+          "x": -4,
+          "y": -12,
+          "r": 10,
+          "applyBob": true
+        },
+        {
+          "type": "circle",
+          "fill": "#ffffff",
+          "stroke": "$stroke",
+          "lineWidth": 1,
+          "x": -10,
+          "y": -13,
+          "r": 2.5,
+          "applyBob": true
+        },
+        {
+          "type": "circle",
+          "fill": "#ffffff",
+          "stroke": "$stroke",
+          "lineWidth": 1,
+          "x": -3,
+          "y": -11,
+          "r": 3,
+          "applyBob": true
+        },
+        {
+          "type": "polygon",
+          "fill": "$body",
+          "stroke": "#3e1e1e",
+          "lineWidth": 1,
+          "x": 3,
+          "y": 14,
+          "points": [
+            [
+              0,
+              -12
+            ],
+            [
+              3,
+              -12
+            ],
+            [
+              1,
+              -8
+            ],
+            [
+              1,
+              -1
+            ],
+            [
+              -4,
+              -4
+            ],
+            [
+              -5,
+              -9
+            ],
+            [
+              -2,
+              -10
+            ]
+          ],
+          "closed": true,
+          "applyBob": true
+        },
+        {
+          "type": "polygon",
+          "fill": "#ffffff",
+          "stroke": "$stroke",
+          "lineWidth": 1,
+          "x": -7,
+          "y": -7,
+          "points": [
+            [
+              -3,
+              0
+            ],
+            [
+              1,
+              2
+            ],
+            [
+              2,
+              4
+            ],
+            [
+              -5,
+              3
+            ]
+          ],
+          "closed": true,
+          "applyBob": true,
+          "applyShake": false
+        },
+        {
+          "type": "circle",
+          "fill": "$body",
+          "stroke": "#296041",
+          "lineWidth": 1,
+          "x": -3,
+          "y": 4,
+          "r": 4,
+          "applyBob": false
+        }
+      ]
+    }
+  },
+  "enemies": {
+    "scp_008": {
+      "shape": "scp 008",
+      "sprite": "",
+      "spriteMode": "replace",
+      "scale": 1,
+      "offsetX": 0,
+      "offsetY": -1,
+      "rotationDeg": 0,
+      "shadow": true,
+      "body": "#25b692",
+      "stroke": "#000000",
+      "strokeWidth": 1.5,
+      "headOrTop": "#b58a5a",
+      "accent": "#61ae2d",
+      "weaponOrDetail": "#222020",
+      "label": "INVESTIGADOR",
+      "codeLabel": "",
+      "hpBar": "#EF4444",
+      "barWidth": 30
+    }
+  }
+}

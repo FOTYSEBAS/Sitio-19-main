@@ -1,0 +1,260 @@
+{
+  "customShapes": {
+    "researcher": {
+      "layers": [
+        {
+          "type": "roundRect",
+          "x": -15,
+          "y": -6,
+          "w": 30,
+          "h": 28,
+          "r": 6,
+          "fill": "$body",
+          "stroke": "#409096",
+          "lineWidth": 2,
+          "applyRecoil": 0.6
+        },
+        {
+          "type": "roundRect",
+          "fill": "#302c2c",
+          "stroke": "#302c2c",
+          "lineWidth": 2,
+          "x": -2,
+          "y": -7,
+          "w": 4,
+          "h": 18,
+          "r": 5
+        },
+        {
+          "type": "roundRect",
+          "fill": "#ffffff",
+          "stroke": "#cfcfcf",
+          "lineWidth": 1,
+          "x": -19,
+          "y": -7,
+          "w": 14,
+          "h": 32,
+          "r": 5
+        },
+        {
+          "type": "roundRect",
+          "fill": "#ffffff",
+          "stroke": "#cfcfcf",
+          "lineWidth": 1,
+          "x": 5,
+          "y": -7,
+          "w": 14,
+          "h": 32,
+          "r": 5
+        },
+        {
+          "type": "roundRect",
+          "fill": "#000000",
+          "lineWidth": 2,
+          "x": -14,
+          "y": -19,
+          "w": 4,
+          "h": 2,
+          "r": 5
+        },
+        {
+          "type": "circle",
+          "x": 0,
+          "y": -16,
+          "r": 12,
+          "fill": "#b58a5a",
+          "stroke": "#926e45",
+          "lineWidth": 2,
+          "applyRecoil": 0.1
+        },
+        {
+          "type": "arc",
+          "fill": "#adfaff",
+          "lineWidth": 1,
+          "x": -8.5,
+          "y": -18,
+          "r": 5,
+          "startDeg": 180,
+          "endDeg": 360,
+          "closed": true,
+          "rotationDeg": 180,
+          "opacity": 0.5,
+          "stroke": "$stroke"
+        },
+        {
+          "type": "arc",
+          "fill": "#adfaff",
+          "lineWidth": 1,
+          "x": 5.5,
+          "y": -18,
+          "r": 5,
+          "startDeg": 180,
+          "endDeg": 360,
+          "closed": true,
+          "rotationDeg": 180,
+          "opacity": 0.5,
+          "stroke": "$stroke"
+        },
+        {
+          "type": "line",
+          "stroke": "#685137",
+          "lineWidth": 1.5,
+          "x": -10,
+          "y": -20,
+          "x2": -4,
+          "y2": -20,
+          "rotationDeg": -6
+        },
+        {
+          "type": "line",
+          "stroke": "#685137",
+          "lineWidth": 1.5,
+          "x": 0,
+          "y": -20.5,
+          "x2": 6,
+          "y2": -20.5,
+          "rotationDeg": 6
+        },
+        {
+          "type": "polygon",
+          "fill": "#604429",
+          "stroke": "#403020",
+          "lineWidth": 2,
+          "x": -2,
+          "y": -36,
+          "points": [
+            [
+              0,
+              5
+            ],
+            [
+              4,
+              5
+            ],
+            [
+              10,
+              5
+            ],
+            [
+              14,
+              8
+            ],
+            [
+              17,
+              11
+            ],
+            [
+              15,
+              16
+            ],
+            [
+              7,
+              11
+            ],
+            [
+              0,
+              12
+            ],
+            [
+              -7,
+              12
+            ],
+            [
+              -10,
+              13
+            ],
+            [
+              -8,
+              9
+            ]
+          ],
+          "closed": true
+        },
+        {
+          "type": "arc",
+          "lineWidth": 1,
+          "x": -8.5,
+          "y": -18,
+          "r": 5,
+          "startDeg": 180,
+          "endDeg": 360,
+          "closed": true,
+          "rotationDeg": 180,
+          "opacity": 1,
+          "stroke": "$stroke"
+        },
+        {
+          "type": "arc",
+          "lineWidth": 1,
+          "x": 5.5,
+          "y": -18,
+          "r": 5,
+          "startDeg": 180,
+          "endDeg": 360,
+          "closed": true,
+          "rotationDeg": 180,
+          "opacity": 1,
+          "stroke": "$stroke"
+        },
+        {
+          "type": "roundRect",
+          "fill": "#000000",
+          "lineWidth": 2,
+          "x": 10,
+          "y": -19,
+          "w": 4,
+          "h": 2,
+          "r": 5
+        },
+        {
+          "type": "roundRect",
+          "fill": "#000000",
+          "lineWidth": 2,
+          "x": -4,
+          "y": -18.5,
+          "w": 5,
+          "h": 1.5,
+          "r": 5
+        },
+        {
+          "type": "roundRect",
+          "fill": "#f72626",
+          "stroke": "$stroke",
+          "lineWidth": 0.5,
+          "x": -17,
+          "y": -2,
+          "w": 10,
+          "h": 6,
+          "r": 1
+        },
+        {
+          "type": "rect",
+          "fill": "#ffffff",
+          "lineWidth": 0.5,
+          "x": -16.8,
+          "y": 0,
+          "w": 9.5,
+          "h": 2
+        }
+      ]
+    }
+  },
+  "towers": {
+    "researcher": {
+      "shape": "researcher",
+      "sprite": "",
+      "spriteMode": "replace",
+      "scale": 1,
+      "offsetX": 0,
+      "offsetY": 0,
+      "rotationDeg": 0,
+      "shadow": true,
+      "body": "#25acb6",
+      "stroke": "#000000",
+      "strokeWidth": 1.6,
+      "headOrTop": "#b58a5a",
+      "accent": "#61ae2d",
+      "weaponOrDetail": "#222020"
+    }
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "type": "lightGuard",
+  "name": "Guardia Ligero",
+  "category": "personal",
+  "cost": 75,
+  "cooldown": 3,
+  "maxHp": 40,
+  "roleLabel": "Pistola · 15 daño",
+  "description": "Personal basico encargado del area de contención ligera, no tiene mucha especialidad frente a los SCP",
+  "fireRate": 1.5,
+  "damage": 15,
+  "burstCount": 1,
+  "projectileKind": "standard",
+  "canBeHypnotized": true
+}
